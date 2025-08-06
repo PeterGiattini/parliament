@@ -1,17 +1,68 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { Download, Upload } from 'lucide-react'
 import DebateInput from './DebateInput'
 import DebateStream from './DebateStream'
 import { DebateMessage } from '../types'
+import Button from './Button'
 
 const DebatePage: React.FC = () => {
   const [messages, setMessages] = useState<DebateMessage[]>([])
   const [isDebating, setIsDebating] = useState(false)
   const [currentTopic, setCurrentTopic] = useState('')
+  const [currentPanelId, setCurrentPanelId] = useState<string | null>(null)
 
-  const startDebate = async (topic: string) => {
+  const handleExportWorkspace = async () => {
+    try {
+      const response = await fetch('/export')
+      if (response.ok) {
+        const data = await response.json()
+        const blob = new Blob([data.data], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `parliament-workspace-${new Date().toISOString().split('T')[0]}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }
+    } catch (error) {
+      console.error('Error exporting workspace:', error)
+      alert('Failed to export workspace data')
+    }
+  }
+
+  const handleImportWorkspace = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const response = await fetch('/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ json_data: text }),
+      })
+
+      if (response.ok) {
+        // Refresh the page to show imported data
+        window.location.reload()
+      } else {
+        alert('Failed to import workspace data')
+      }
+    } catch (error) {
+      console.error('Error importing workspace:', error)
+      alert('Failed to import workspace data')
+    }
+  }
+
+  const startDebate = async (topic: string, agentIds: string[], panelId?: string) => {
     setCurrentTopic(topic)
     setMessages([])
     setIsDebating(true)
+    setCurrentPanelId(panelId || null)
 
     try {
       const response = await fetch('/debate', {
@@ -19,7 +70,11 @@ const DebatePage: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ topic }),
+        body: JSON.stringify({ 
+          topic,
+          agent_ids: agentIds.length > 0 ? agentIds : undefined,
+          panel_id: panelId
+        }),
       })
 
       if (!response.ok) {
@@ -106,7 +161,43 @@ const DebatePage: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="mb-12 text-center">
+      {/* Header with branding and workspace management */}
+      <div className="bg-parliament-blue text-white p-6 rounded-lg mb-8">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="text-2xl">🏛️</div>
+            <div>
+              <h1 className="text-2xl font-bold">Parliament</h1>
+              <p className="text-sm text-blue-100">Multi-Agent AI Debate System</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg p-4">
+            <p className="text-xs text-gray-500 mb-2">Import/Export Workspace</p>
+            <div className="flex space-x-2">
+              <Button
+                variant="secondary"
+                onClick={handleExportWorkspace}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Export
+              </Button>
+              <label className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-parliament-blue cursor-pointer">
+                <Upload className="h-4 w-4 mr-1" />
+                Import
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportWorkspace}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="mb-8 text-center">
         <h2 className="text-4xl font-bold text-gray-900 mb-4">
           What should we debate?
         </h2>

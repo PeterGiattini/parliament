@@ -133,7 +133,7 @@ cd backend
 
 # Activate virtual environment and start backend
 source .venv/bin/activate
-python main.py > /tmp/parliament_backend.log 2>&1 &
+uvicorn main:app --reload --host 0.0.0.0 --port 8000 > /tmp/parliament_backend.log 2>&1 &
 BACKEND_PID=$!
 
 # Wait a moment for backend to start

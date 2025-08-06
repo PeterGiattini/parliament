@@ -1,24 +1,9 @@
 """Agent definitions and templates for the Parliament debate system."""
 
-from dataclasses import dataclass
 from typing import Any
 
 from debate_constants import AGENT_DIRECTIVES
-
-
-@dataclass
-class AgentConfig:
-    """Configuration for creating an agent."""
-
-    name: str
-    role: str
-    specialization: str
-    primary_goal: str
-    key_principles: list[str]
-    scope: str
-    communication_style: str
-    color: str
-    icon: str
+from models import AgentConfig
 
 
 def get_common_directives() -> str:

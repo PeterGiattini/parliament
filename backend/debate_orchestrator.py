@@ -251,9 +251,12 @@ class DebateOrchestrator:
         round_num: int,
     ) -> dict[str, Any]:
         """Create a standardized transcript entry."""
+        # Use the first tag as role, or fallback to 'debater' if no tags
+        role = agent.get("tags", ["debater"])[0] if agent.get("tags") else "debater"
+
         return {
             "agent": agent["name"],
-            "role": agent["role"],
+            "role": role,
             "round": round_num,
             "content": response,
             "color": agent["color"],
@@ -267,10 +270,13 @@ class DebateOrchestrator:
         round_num: int,
     ) -> str:
         """Create a standardized response event."""
+        # Use the first tag as role, or fallback to 'debater' if no tags
+        role = agent.get("tags", ["debater"])[0] if agent.get("tags") else "debater"
+
         data = {
             "type": "agent_response",
             "agent": agent["name"],
-            "role": agent["role"],
+            "role": role,
             "content": response,
             "round": round_num,
             "color": agent["color"],

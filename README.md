@@ -4,18 +4,26 @@ A multi-agent AI debate system that generates structured, multi-faceted analysis
 
 ## Concept
 
-Parliament creates AI agents with distinct perspectives (Economist, Ethicist, Technologist, Sociologist) who debate user questions in a structured three-round format:
+Parliament creates AI agents with distinct perspectives who debate user questions in a structured format. The system supports both built-in expert agents (Economist, Ethicist, Technologist, Sociologist) and custom user-generated agents.
 
+### Debate Structure
+Currently implements a 4-round debate format:
 1. **Opening Statements**: Each agent independently analyzes the topic
 2. **Rebuttal**: Agents engage with each other's arguments sequentially  
-3. **Synthesis**: A moderator summarizes key points, areas of agreement, and outstanding questions
+3. **Surrebuttal**: Agents defend their positions against critiques
+4. **Synthesis**: A moderator summarizes key points, areas of agreement, and outstanding questions
+
+### Key Features
+- **Agent Management**: Create, save, and manage custom agents with simple prompts
+- **Panel System**: Assemble and save debate panels for reuse
+- **Export/Import**: Share agents and panels via JSON export/import
 
 ## Architecture
 
 - **Backend**: Python FastAPI with LangChain orchestration
 - **Frontend**: React with streaming UI
-- **AI**: Vertex AI (Gemini 1.5 Pro) for agent responses
-- **Structure**: 3-round debate funnel with extensible agent system
+- **AI**: Vertex AI (Gemini 2.0 Flash) for agent responses
+- **Persistence**: In-memory with JSON export/import
 
 ## Setup
 
@@ -86,13 +94,15 @@ Use the provided startup scripts for the easiest development experience:
 ./start.sh
 ```
 
+Both scripts include auto-reload for both frontend and backend services.
+
 ### Manual Development
 
 #### Backend
 ```bash
 cd backend
 source .venv/bin/activate
-uvicorn main:app --reload
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 #### Frontend
@@ -105,6 +115,7 @@ npm run dev
 - **Dependency Management**: Uses `uv` for Python dependencies
 - **Linting**: Uses `ruff` for Python code formatting and linting
 - **Type Checking**: TypeScript for frontend type safety
+- **Auto-reload**: Both frontend and backend auto-reload on file changes
 
 ## Services
 
@@ -113,6 +124,25 @@ Once started, you'll have access to:
 - **Backend API**: http://localhost:8000
 - **Backend Health Check**: http://localhost:8000/health
 
+## User Experience
+
+### Creating Debates
+1. **Select Agents**: Choose from built-in experts or create custom agents
+2. **Assemble Panel**: Build debate panels with 2 or more agents
+3. **Start Debate**: Enter your topic and watch the structured debate unfold
+4. **Save Panels**: Reuse successful panel combinations
+
+### Custom Agents
+Create agents with simple prompts like:
+- "A Keynesian economist"
+- "Abraham Lincoln oration style"
+- "A libertarian policy analyst"
+
+### Panel Management
+- Save custom panels (e.g., "Economic Policy Panel", "Climate Debate Panel")
+- Export/import panels as JSON strings
+- Modify existing panels
+
 ## Additional Documentation
 
 - **Startup Guide**: See `STARTUP.md` for detailed startup instructions and troubleshooting
@@ -120,8 +150,8 @@ Once started, you'll have access to:
 
 ## Future Roadmap
 
-- Dynamic agent generation
-- Multi-model capability  
-- Research tools integration
-- MCP integration
-- Service/API model 
+- **Customizable Debate Structure**: Configurable debate layer system
+- **Research Tools**: Google Search integration for factual debates
+- **Advanced Agent Features**: LLM-based agent generation and enhanced capabilities
+- **Multi-model Capability**: Support for different AI models
+- **MCP Integration**: Model Context Protocol integration 
