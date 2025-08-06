@@ -70,17 +70,6 @@ const PanelManager: React.FC<PanelManagerProps> = ({
   }
 
   const handleLoadPanel = async (panel: Panel) => {
-    // First, increment the usage count
-    try {
-      await fetch(`/panels/${panel.id}/use`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-    } catch (error) {
-      console.error('Error updating panel usage:', error)
-    }
     
     // Then load the panel agents
     onLoadPanel(panel.agent_ids)
