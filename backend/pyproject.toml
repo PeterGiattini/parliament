@@ -21,7 +21,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv]
-dev-dependencies = []
+dev-dependencies = [
+    "ruff>=0.1.0",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["."] 
