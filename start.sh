@@ -14,6 +14,32 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# Parse command line arguments
+VERBOSE=true
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --simple|-s)
+            VERBOSE=false
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --simple, -s    Simple mode (no real-time log monitoring)"
+            echo "  --help, -h      Show this help message"
+            echo ""
+            echo "Default mode is verbose with real-time log monitoring."
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 # Logging functions
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -88,6 +114,15 @@ cleanup() {
         kill $BACKEND_PID 2>/dev/null || true
     fi
     
+    # Kill log monitoring processes if in verbose mode
+    if [ "$VERBOSE" = true ] && [ ! -z "$BACKEND_LOG_PID" ]; then
+        kill $BACKEND_LOG_PID 2>/dev/null || true
+    fi
+    
+    if [ "$VERBOSE" = true ] && [ ! -z "$FRONTEND_LOG_PID" ]; then
+        kill $FRONTEND_LOG_PID 2>/dev/null || true
+    fi
+    
     # Remove temporary files
     rm -f /tmp/parliament_frontend.log /tmp/parliament_backend.log
     
@@ -115,9 +150,9 @@ if check_port 8000; then
     log_warning "Port 8000 is already in use. Backend may not start properly."
 fi
 
-# Check if virtual environment exists
-if [ ! -d "backend/.venv" ]; then
-    log_error "Backend virtual environment not found. Please run setup first."
+# Check if uv is available
+if ! command -v uv &> /dev/null; then
+    log_error "uv is not installed. Please install uv first."
     exit 1
 fi
 
@@ -131,9 +166,8 @@ fi
 log_info "Starting backend server..."
 cd backend
 
-# Activate virtual environment and start backend
-source .venv/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000 > /tmp/parliament_backend.log 2>&1 &
+# Start backend with uv
+uv run main.py > /tmp/parliament_backend.log 2>&1 &
 BACKEND_PID=$!
 
 # Wait a moment for backend to start
@@ -153,6 +187,8 @@ if wait_for_service "http://localhost:8000/health" "Backend"; then
     log_success "Backend is ready at http://localhost:8000"
 else
     log_error "Backend failed to become ready"
+    log_error "Backend logs:"
+    cat /tmp/parliament_backend.log
     cleanup
     exit 1
 fi
@@ -203,29 +239,45 @@ echo -e "${GREEN}Logs:${NC}"
 echo -e "  ${CYAN}Backend:${NC}  /tmp/parliament_backend.log"
 echo -e "  ${PURPLE}Frontend:${NC} /tmp/parliament_frontend.log"
 echo ""
-echo -e "${YELLOW}Press Ctrl+C to stop all services${NC}"
-echo ""
 
-# Monitor logs in real-time
-log_info "Monitoring logs (press Ctrl+C to stop)..."
-echo ""
-
-# Function to display logs with prefixes
-tail_logs() {
-    # Tail backend logs with prefix
-    tail -f /tmp/parliament_backend.log | sed 's/^/[BACKEND] /' &
-    BACKEND_LOG_PID=$!
+if [ "$VERBOSE" = true ]; then
+    echo -e "${YELLOW}Press Ctrl+C to stop all services${NC}"
+    echo ""
     
-    # Tail frontend logs with prefix
-    tail -f /tmp/parliament_frontend.log | sed 's/^/[FRONTEND] /' &
-    FRONTEND_LOG_PID=$!
+    # Monitor logs in real-time
+    log_info "Monitoring logs (press Ctrl+C to stop)..."
+    echo ""
     
-    # Wait for either process to exit
+    # Function to display logs with prefixes
+    tail_logs() {
+        # Tail backend logs with prefix
+        tail -f /tmp/parliament_backend.log | sed 's/^/[BACKEND] /' &
+        BACKEND_LOG_PID=$!
+        
+        # Tail frontend logs with prefix
+        tail -f /tmp/parliament_frontend.log | sed 's/^/[FRONTEND] /' &
+        FRONTEND_LOG_PID=$!
+        
+        # Wait for either process to exit
+        wait
+    }
+    
+    # Start log monitoring
+    tail_logs &
+    
+    # Wait for user interrupt
     wait
-}
-
-# Start log monitoring
-tail_logs &
-
-# Wait for user interrupt
-wait 
+else
+    echo -e "${GREEN}Useful commands:${NC}"
+    echo -e "  ${CYAN}View backend logs:${NC}   tail -f /tmp/parliament_backend.log"
+    echo -e "  ${PURPLE}View frontend logs:${NC}  tail -f /tmp/parliament_frontend.log"
+    echo -e "  ${YELLOW}Stop services:${NC}      Press Ctrl+C"
+    echo ""
+    echo -e "${YELLOW}Press Ctrl+C to stop all services${NC}"
+    echo ""
+    
+    # Keep the script running
+    while true; do
+        sleep 1
+    done
+fi 

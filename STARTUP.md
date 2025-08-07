@@ -1,32 +1,38 @@
-# Parliament Startup Scripts
+# Parliament Startup Script
 
-This directory contains scripts to easily start both the frontend and backend services for the Parliament debate system.
+This directory contains a script to easily start both the frontend and backend services for the Parliament debate system.
 
 ## Quick Start
 
-### Option 1: Simple Startup (Recommended)
-```bash
-./start-simple.sh
-```
-
-### Option 2: Full Startup with Real-time Logs
+### Default Mode (with real-time logs)
 ```bash
 ./start.sh
 ```
 
-## What the Scripts Do
+### Simple Mode (no real-time logs)
+```bash
+./start.sh --simple
+# or
+./start.sh -s
+```
 
-Both scripts will:
+### Show Help
+```bash
+./start.sh --help
+```
+
+## What the Script Does
+
+The startup script will:
 
 1. **Check Prerequisites**
    - Verify you're in the project root directory
-   - Check if backend virtual environment exists
+   - Check if `uv` is available
    - Check if frontend node_modules exists
    - Warn if ports 5173 or 8000 are already in use
 
 2. **Start Backend**
-   - Activate the Python virtual environment
-   - Start the FastAPI server on port 8000
+   - Start the FastAPI server using `uv run main.py` on port 8000
    - Wait for the health endpoint to be ready
    - Log to `/tmp/parliament_backend.log`
 
@@ -69,7 +75,7 @@ tail -50 /tmp/parliament_backend.log
 ### Common Issues
 
 #### Backend Won't Start
-1. Check if virtual environment exists: `ls backend/.venv`
+1. Check if `uv` is installed: `which uv`
 2. Check backend logs: `cat /tmp/parliament_backend.log`
 3. Verify environment variables: `cat backend/env.example`
 
@@ -106,8 +112,7 @@ If you prefer to start services manually:
 ### Backend
 ```bash
 cd backend
-source .venv/bin/activate
-python main.py
+uv run main.py
 ```
 
 ### Frontend
@@ -122,13 +127,12 @@ npm run dev
 If you get "Permission denied" errors:
 ```bash
 chmod +x start.sh
-chmod +x start-simple.sh
 ```
 
 ### Missing Dependencies
 If the script fails due to missing dependencies:
 
-1. **Backend**: Run the setup script or manually create the virtual environment
+1. **Backend**: Run the setup script or ensure `uv` is installed
 2. **Frontend**: Run `npm install` in the frontend directory
 
 ### Environment Variables
@@ -138,7 +142,7 @@ cp backend/env.example backend/.env
 # Edit backend/.env with your actual values
 ```
 
-## Script Differences
+## Script Modes
 
-- **`start-simple.sh`**: Starts services and keeps running without real-time log monitoring
-- **`start.sh`**: Includes real-time log monitoring with colored prefixes for easier debugging 
+- **Default mode**: Includes real-time log monitoring with colored prefixes for easier debugging
+- **Simple mode** (`--simple`): Starts services and keeps running without real-time log monitoring 

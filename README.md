@@ -84,25 +84,24 @@ See the `env.example` files for additional optional configuration options.
 ## Development
 
 ### Quick Start
-Use the provided startup scripts for the easiest development experience:
+Use the provided startup script for the easiest development experience:
 
 ```bash
-# Simple startup
-./start-simple.sh
-
-# Full startup with real-time logs
+# Default mode (with real-time logs)
 ./start.sh
+
+# Simple mode (no real-time logs)
+./start.sh --simple
 ```
 
-Both scripts include auto-reload for both frontend and backend services.
+The script includes auto-reload for both frontend and backend services.
 
 ### Manual Development
 
 #### Backend
 ```bash
 cd backend
-source .venv/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uv run main.py
 ```
 
 #### Frontend
