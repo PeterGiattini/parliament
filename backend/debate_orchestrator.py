@@ -10,6 +10,7 @@ from typing import Any
 from langchain_core.messages import HumanMessage
 from langchain_google_vertexai import ChatVertexAI
 
+import models
 from debate_constants import DEBATE_PROMPTS, DEBATE_ROUNDS, LLM_CONFIG
 
 # Round constants
@@ -26,11 +27,11 @@ class DebateOrchestrator:
     4. Synthesis (moderator)
     """
 
-    def __init__(self, agents: list[dict[str, Any]]) -> None:
+    def __init__(self, agents: list[models.Agent]) -> None:
         """Initialize the debate orchestrator.
 
         Args:
-            agents: List of agent configurations.
+            agents: List of agent objects.
 
         """
         self.agents = agents
@@ -121,7 +122,7 @@ class DebateOrchestrator:
 
     async def _get_rebuttal(
         self,
-        agent: dict[str, Any],
+        agent: models.Agent,
         topic: str,
         opening_statements: list[tuple],
     ) -> str:
@@ -129,7 +130,7 @@ class DebateOrchestrator:
         # Find this agent's original opening statement
         agent_statement = None
         for other_agent, statement in opening_statements:
-            if other_agent["name"] == agent["name"]:
+            if other_agent.name == agent.name:
                 agent_statement = statement
                 break
 
@@ -138,8 +139,8 @@ class DebateOrchestrator:
         context += f"Your Opening Statement: {agent_statement}\n\n"
         context += "Other Panelists' Opening Statements:\n"
         for other_agent, statement in opening_statements:
-            if other_agent["name"] != agent["name"]:
-                context += f"\n{other_agent['name']}:\n{statement}\n"
+            if other_agent.name != agent.name:
+                context += f"\n{other_agent.name}:\n{statement}\n"
 
         return await self._get_agent_response(agent, context, "rebuttal")
 
@@ -161,7 +162,7 @@ class DebateOrchestrator:
         response = await self.llm.ainvoke(messages)
         return response.content
 
-    def _get_randomized_agents(self) -> list[dict[str, Any]]:
+    def _get_randomized_agents(self) -> list[models.Agent]:
         """Get agents in randomized order for sequential rounds."""
         agents_copy = self.agents.copy()
         random.shuffle(agents_copy)
@@ -169,7 +170,7 @@ class DebateOrchestrator:
 
     async def _get_surrebuttal(
         self,
-        agent: dict[str, Any],
+        agent: models.Agent,
         topic: str,
         opening_statements: list[tuple],
         rebuttal_statements: list[tuple],
@@ -178,7 +179,7 @@ class DebateOrchestrator:
         # Find this agent's original opening statement
         agent_statement = None
         for other_agent, statement in opening_statements:
-            if other_agent["name"] == agent["name"]:
+            if other_agent.name == agent.name:
                 agent_statement = statement
                 break
 
@@ -187,11 +188,11 @@ class DebateOrchestrator:
         context += f"Your Opening Statement: {agent_statement}\n\n"
         context += "All Panelists' Opening Statements:\n"
         for other_agent, statement in opening_statements:
-            context += f"\n{other_agent['name']}:\n{statement}\n"
+            context += f"\n{other_agent.name}:\n{statement}\n"
 
         context += "\nAll Panelists' Rebuttal Statements:\n"
         for other_agent, statement in rebuttal_statements:
-            context += f"\n{other_agent['name']}:\n{statement}\n"
+            context += f"\n{other_agent.name}:\n{statement}\n"
 
         return await self._get_agent_response(agent, context, "surrebuttal")
 
@@ -246,53 +247,53 @@ class DebateOrchestrator:
 
     def _create_transcript_entry(
         self,
-        agent: dict[str, Any],
+        agent: models.Agent,
         response: str,
         round_num: int,
     ) -> dict[str, Any]:
         """Create a standardized transcript entry."""
         # Use the first tag as role, or fallback to 'debater' if no tags
-        role = agent.get("tags", ["debater"])[0] if agent.get("tags") else "debater"
+        role = agent.tags[0] if agent.tags else "debater"
 
         return {
-            "agent": agent["name"],
+            "agent": agent.name,
             "role": role,
             "round": round_num,
             "content": response,
-            "color": agent["color"],
-            "icon": agent["icon"],
+            "color": agent.color,
+            "icon": agent.icon,
         }
 
     def _create_response_event(
         self,
-        agent: dict[str, Any],
+        agent: models.Agent,
         response: str,
         round_num: int,
     ) -> str:
         """Create a standardized response event."""
         # Use the first tag as role, or fallback to 'debater' if no tags
-        role = agent.get("tags", ["debater"])[0] if agent.get("tags") else "debater"
+        role = agent.tags[0] if agent.tags else "debater"
 
         data = {
             "type": "agent_response",
-            "agent": agent["name"],
+            "agent": agent.name,
             "role": role,
             "content": response,
             "round": round_num,
-            "color": agent["color"],
-            "icon": agent["icon"],
+            "color": agent.color,
+            "icon": agent.icon,
         }
         return f"data: {json.dumps(data)}\n\n"
 
     async def _get_agent_response(
         self,
-        agent: dict[str, Any],
+        agent: models.Agent,
         content: str,
         response_type: str,
     ) -> str:
         """Get response from a specific agent."""
         if (prompt_suffix := self.prompts.get(response_type)) is not None:
-            prompt = f"{agent['system_prompt']}\n\n{prompt_suffix}\n\n{content}"
+            prompt = f"{agent.system_prompt}\n\n{prompt_suffix}\n\n{content}"
         else:
             prompt = content
 
@@ -302,6 +303,6 @@ class DebateOrchestrator:
             response = await self.llm.ainvoke(messages)
         except (ValueError, RuntimeError, ConnectionError) as e:
             # Log the error and return a fallback response
-            return f"Error generating response for {agent['name']}: {e!s}"
+            return f"Error generating response for {agent.name}: {e!s}"
         else:
             return response.content
