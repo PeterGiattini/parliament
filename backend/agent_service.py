@@ -26,22 +26,9 @@ class AgentManager:
 
         # Load built-in agents
         default_agents = get_default_agents()
-        for agent_data in default_agents:
-            agent = Agent(
-                id=str(uuid.uuid4()),
-                name=agent_data["name"],
-                description=(
-                    f"{agent_data['role']} specializing in "
-                    f"{agent_data.get('specialization', 'debate')}"
-                ),
-                system_prompt=agent_data["system_prompt"],
-                tags=[agent_data["role"], "built-in"],
-                is_built_in=True,
-                created_at=int(datetime.now(UTC).timestamp()),
-                usage_count=0,
-                color=agent_data["color"],
-                icon=agent_data["icon"],
-            )
+        for agent in default_agents:
+            # Set creation timestamp for built-in agents
+            agent.created_at = int(datetime.now(UTC).timestamp())
             self.agents[agent.id] = agent
 
     def get_all_agents(self) -> list[Agent]:
