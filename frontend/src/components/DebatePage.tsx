@@ -102,12 +102,8 @@ const DebatePage: React.FC = () => {
       setMessages(prev => [
         ...prev,
         {
-          agent: 'Error',
-          role: 'error',
+          type: 'error',
           content: 'An error occurred while starting the debate. Please try again.',
-          round: 0,
-          color: '',
-          icon: '⚠️',
           timestamp: new Date(),
         },
       ])
@@ -119,27 +115,66 @@ const DebatePage: React.FC = () => {
 
   const handleStreamMessage = (data: StreamEvent) => {
     switch (data.type) {
-      case 'status_update':
-        setCurrentStatus(data as unknown as StatusUpdate)
-        break
+      case 'status_update': {
+        const status = data as unknown as StatusUpdate
+        setCurrentStatus(status)
 
-      case 'agent_response':
+        const now = new Date()
+        // Persist round headers within the conversation flow
+        if (status.code === 'ROUND_STARTING') {
+          const roundNum = status.round_number
+          const roundTitle = status.round_title
+          if (typeof roundNum === 'number' && typeof roundTitle === 'string') {
+            setMessages(prev => [
+              ...prev,
+              {
+                type: 'round_header',
+                timestamp: now,
+                round: roundNum,
+                title: roundTitle,
+                round_type: status.round_type ?? 'sequential',
+              },
+            ])
+          }
+        }
+        break
+      }
+
+      case 'agent_response': {
+        const now = new Date()
+        setMessages(prev => {
+          const next = [...prev]
+          if (data.agent === 'Moderator') {
+            next.push({
+              type: 'synthesis',
+              timestamp: now,
+              content: data.content,
+            })
+          } else {
+            next.push({
+              type: 'agent_message',
+              timestamp: now,
+              agent: data.agent,
+              role: data.role,
+              content: data.content,
+              color: data.color,
+              icon: data.icon,
+              round: data.round as number,
+            })
+          }
+          return next
+        })
+        break
+      }
+
+      case 'debate_complete':
         setMessages(prev => [
           ...prev,
           {
-            agent: data.agent,
-            role: data.role,
-            content: data.content,
-            color: data.color,
-            icon: data.icon,
-            round: data.round,
+            type: 'debate_complete',
             timestamp: new Date(),
           },
         ])
-        break
-
-      case 'debate_complete':
-        // The finally block handles the end of the debate
         break
     }
   }
@@ -182,7 +217,7 @@ const DebatePage: React.FC = () => {
       </div>
 
       <div className="mb-8">
-        <DebateInput onStartDebate={startDebate} isDebating={isDebating} />
+        <DebateInput onStartDebate={startDebate} isDebating={isDebating} currentTopic={currentTopic} />
       </div>
 
       {(messages.length > 0 || isDebating) && (
