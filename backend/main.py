@@ -1,8 +1,5 @@
 """FastAPI application for the Parliament multi-agent debate system."""
 
-import os
-from typing import Any
-
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +8,6 @@ from fastapi.responses import StreamingResponse
 import models
 from agent_service import agent_manager
 from agent_templates import get_default_agents
-from debate_orchestrator import DebateOrchestrator
 from langgraph_debate_orchestrator import LangGraphDebateOrchestrator
 
 load_dotenv()
@@ -129,17 +125,6 @@ def _validate_agents(agent_ids: list[str] | None) -> list[models.Agent]:
     return agents
 
 
-def _create_debate_orchestrator(
-    agents: list[models.Agent],
-) -> DebateOrchestrator | LangGraphDebateOrchestrator:
-    """Create a debate orchestrator based on feature flag."""
-    use_langgraph = os.getenv("USE_LANGGRAPH_ORCHESTRATOR", "false").lower() == "true"
-
-    if use_langgraph:
-        return LangGraphDebateOrchestrator(agents)
-    return DebateOrchestrator(agents)
-
-
 @app.post("/api/debates/stream")
 async def start_debate(request: models.DebateRequest) -> StreamingResponse:
     """Start a new debate with the given topic and optional agent selection.
@@ -155,7 +140,7 @@ async def start_debate(request: models.DebateRequest) -> StreamingResponse:
         else:
             agents = get_default_agents()
 
-        orchestrator = _create_debate_orchestrator(agents)
+        orchestrator = LangGraphDebateOrchestrator(agents)
         return StreamingResponse(
             orchestrator.run_debate(request.topic),
             media_type="text/event-stream",
@@ -172,21 +157,6 @@ async def start_debate(request: models.DebateRequest) -> StreamingResponse:
 async def health_check() -> models.MessageResponse:
     """Return health status of the API."""
     return models.MessageResponse(message="healthy")
-
-
-@app.get("/api/orchestrator-info")
-async def get_orchestrator_status() -> dict[str, Any]:
-    """Get information about the current debate orchestrator."""
-    use_langgraph = os.getenv("USE_LANGGRAPH_ORCHESTRATOR", "false").lower() == "true"
-
-    return {
-        "orchestrator_type": "langgraph" if use_langgraph else "legacy",
-        "feature_flag": "USE_LANGGRAPH_ORCHESTRATOR",
-        "feature_flag_value": use_langgraph,
-        "description": "LangGraph-based orchestrator with state management"
-        if use_langgraph
-        else "Legacy orchestrator with linear flow",
-    }
 
 
 if __name__ == "__main__":

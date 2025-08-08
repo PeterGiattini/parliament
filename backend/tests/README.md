@@ -100,5 +100,4 @@ class TestMyFeature:
 ## Notes
 
 - Tests avoid making actual LLM calls to avoid credential requirements.
-- **Orchestrator Feature Flag**: The system can switch between the legacy and LangGraph orchestrators via the `USE_LANGGRAPH_ORCHESTRATOR` environment variable. Tests should account for both configurations where applicable.
 - All tests should pass without external service configuration.

@@ -17,11 +17,11 @@ Currently implements a 4-round debate format:
 - **Agent Management**: Create, save, and manage custom agents with simple prompts
 - **Panel System**: Assemble and save debate panels for reuse
 - **Export/Import**: Share agents and panels via JSON export/import
-- **Stateful Orchestration**: Uses LangGraph for robust, state-driven debate management.
+- **Stateful Orchestration**: LangGraph-based, robust, state-driven debate management
 
 ## Architecture
 
-- **Backend**: Python FastAPI with LangGraph and LangChain orchestration
+- **Backend**: Python FastAPI with LangGraph orchestration
 - **Frontend**: React with streaming UI
 - **AI**: Vertex AI (Gemini 2.0 Flash) for agent responses
 - **Persistence**: In-memory with JSON export/import
@@ -73,12 +73,6 @@ cp env.example .env
 ```
 GOOGLE_CLOUD_PROJECT=your-project-id
 GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
-```
-
-**Optional backend/.env variables:**
-```
-# Set to "true" to use the new LangGraph-based orchestrator
-USE_LANGGRAPH_ORCHESTRATOR=false 
 ```
 
 **Required frontend/.env variables:**
