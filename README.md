@@ -17,10 +17,11 @@ Currently implements a 4-round debate format:
 - **Agent Management**: Create, save, and manage custom agents with simple prompts
 - **Panel System**: Assemble and save debate panels for reuse
 - **Export/Import**: Share agents and panels via JSON export/import
+- **Stateful Orchestration**: LangGraph-based, robust, state-driven debate management
 
 ## Architecture
 
-- **Backend**: Python FastAPI with LangChain orchestration
+- **Backend**: Python FastAPI with LangGraph orchestration
 - **Frontend**: React with streaming UI
 - **AI**: Vertex AI (Gemini 2.0 Flash) for agent responses
 - **Persistence**: In-memory with JSON export/import
@@ -110,8 +111,17 @@ cd frontend
 npm run dev
 ```
 
+### Testing
+The backend includes a test suite using `pytest`. You can run tests using the provided script:
+```bash
+cd backend
+./run_tests.py
+```
+For more details, see `backend/tests/README.md`.
+
 ### Development Tools
 - **Dependency Management**: Uses `uv` for Python dependencies
+- **Testing**: `pytest` for backend unit tests
 - **Linting**: Uses `ruff` for Python code formatting and linting
 - **Type Checking**: TypeScript for frontend type safety
 - **Auto-reload**: Both frontend and backend auto-reload on file changes
@@ -120,8 +130,8 @@ npm run dev
 
 Once started, you'll have access to:
 - **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8000
-- **Backend Health Check**: http://localhost:8000/health
+- **Backend API**: http://localhost:8000/api
+- **Backend Health Check**: http://localhost:8000/api/health
 
 ## User Experience
 
@@ -147,10 +157,14 @@ Create agents with simple prompts like:
 - **Startup Guide**: See `STARTUP.md` for detailed startup instructions and troubleshooting
 - **Environment Configuration**: Check `env.example` files for all available configuration options
 
+## Known Issues
+
+- Single-agent "debates" are unstable, and agents are more likely to hallucinate. For best results, use at least two agents.
+
 ## Future Roadmap
 
 - **Customizable Debate Structure**: Configurable debate layer system
 - **Research Tools**: Google Search integration for factual debates
 - **Advanced Agent Features**: LLM-based agent generation and enhanced capabilities
 - **Multi-model Capability**: Support for different AI models
-- **MCP Integration**: Model Context Protocol integration 
+- **MCP Integration**: Model Context Protocol integration

@@ -7,30 +7,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/debate': {
+      '/api': {
         target: 'http://localhost:8000',
-        changeOrigin: true
+        changeOrigin: true,
       },
-      '/health': {
-        target: 'http://localhost:8000',
-        changeOrigin: true
-      },
-      '/agents': {
-        target: 'http://localhost:8000',
-        changeOrigin: true
-      },
-      '/panels': {
-        target: 'http://localhost:8000',
-        changeOrigin: true
-      },
-      '/export': {
-        target: 'http://localhost:8000',
-        changeOrigin: true
-      },
-      '/import': {
-        target: 'http://localhost:8000',
-        changeOrigin: true
-      }
-    }
-  }
+    },
+  },
 }) 

@@ -32,7 +32,7 @@ const AgentSelector: React.FC<AgentSelectorProps> = ({
 
   const fetchAgents = async () => {
     try {
-      const response = await fetch('/agents')
+      const response = await fetch('/api/agents')
       if (response.ok) {
         const data = await response.json()
         setAgents(data.agents)
@@ -57,7 +57,7 @@ const AgentSelector: React.FC<AgentSelectorProps> = ({
 
     try {
       console.log('Generating agent with prompt:', generatePrompt)
-      const response = await fetch('/agents/generate', {
+      const response = await fetch('/api/agents/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

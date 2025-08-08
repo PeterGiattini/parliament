@@ -3,7 +3,7 @@
 from typing import Any
 
 from debate_constants import AGENT_DIRECTIVES
-from models import AgentConfig
+from models import Agent, AgentConfig
 
 
 def get_common_directives() -> str:
@@ -43,14 +43,31 @@ def get_agent_template(config: AgentConfig) -> dict[str, Any]:
     }
 
 
-def get_default_agents() -> list[dict[str, Any]]:
+def create_built_in_agent(config: AgentConfig) -> Agent:
+    """Create a built-in Agent from an AgentConfig."""
+    template = get_agent_template(config)
+    return Agent(
+        id=f"_{config.role}",  # Static ID for built-in agents
+        name=template["name"],
+        description=f"Built-in {config.role} agent",
+        system_prompt=template["system_prompt"],
+        color=template["color"],
+        icon=template["icon"],
+        tags=[config.role, "built-in"],
+        is_built_in=True,
+        created_at=0,
+        usage_count=0,
+    )
+
+
+def get_default_agents() -> list[Agent]:
     """Return the default set of agents for Parliament MVP.
 
     Each agent follows the persona template: identity, objective, principles,
     scope, communication style.
     """
     return [
-        get_agent_template(
+        create_built_in_agent(
             AgentConfig(
                 name="The Economist",
                 role="economist",
@@ -109,7 +126,7 @@ def get_default_agents() -> list[dict[str, Any]]:
                 icon="💰",
             ),
         ),
-        get_agent_template(
+        create_built_in_agent(
             AgentConfig(
                 name="The Ethicist",
                 role="ethicist",
@@ -160,7 +177,7 @@ def get_default_agents() -> list[dict[str, Any]]:
                 icon="⚖️",
             ),
         ),
-        get_agent_template(
+        create_built_in_agent(
             AgentConfig(
                 name="The Technologist",
                 role="technologist",
@@ -211,7 +228,7 @@ def get_default_agents() -> list[dict[str, Any]]:
                 icon="🔧",
             ),
         ),
-        get_agent_template(
+        create_built_in_agent(
             AgentConfig(
                 name="The Sociologist",
                 role="sociologist",

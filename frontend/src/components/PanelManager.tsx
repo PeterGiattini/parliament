@@ -29,7 +29,7 @@ const PanelManager: React.FC<PanelManagerProps> = ({
 
   const fetchPanels = async () => {
     try {
-      const response = await fetch('/panels')
+      const response = await fetch('/api/panels')
       if (response.ok) {
         const data = await response.json()
         setPanels(data.panels)
@@ -43,7 +43,7 @@ const PanelManager: React.FC<PanelManagerProps> = ({
     if (!panelName.trim() || selectedAgents.length === 0) return
 
     try {
-      const response = await fetch('/panels', {
+      const response = await fetch('/api/panels', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

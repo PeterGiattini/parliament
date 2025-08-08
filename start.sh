@@ -183,7 +183,7 @@ fi
 log_success "Backend started with PID: $BACKEND_PID"
 
 # Wait for backend to be ready
-if wait_for_service "http://localhost:8000/health" "Backend"; then
+if wait_for_service "http://localhost:8000/api/health" "Backend"; then
     log_success "Backend is ready at http://localhost:8000"
 else
     log_error "Backend failed to become ready"
