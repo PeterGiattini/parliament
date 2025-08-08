@@ -157,6 +157,10 @@ Create agents with simple prompts like:
 - **Startup Guide**: See `STARTUP.md` for detailed startup instructions and troubleshooting
 - **Environment Configuration**: Check `env.example` files for all available configuration options
 
+## Known Issues
+
+- Single-agent "debates" are unstable, and agents are more likely to hallucinate. For best results, use at least two agents.
+
 ## Future Roadmap
 
 - **Customizable Debate Structure**: Configurable debate layer system
