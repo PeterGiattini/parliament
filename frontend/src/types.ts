@@ -1,13 +1,31 @@
+// Represents a message or event in the debate transcript.
 export interface DebateMessage {
-  type: 'agent_message' | 'synthesis' | 'round_header' | 'debate_complete' | 'error'
-  content?: string
-  agent?: string
-  role?: string
-  color?: string
-  icon?: string
-  round?: number
-  title?: string
+  agent: string
+  role: string
+  content: string
+  round: number
+  color: string
+  icon: string
   timestamp: Date
+}
+
+// Represents a structured status update from the orchestrator.
+export interface StatusUpdate {
+  code: 'ROUND_STARTING' | 'AGENT_TURN_STARTING' | 'SYNTHESIS' | 'END'
+  round_number?: number
+  round_title?: string
+  round_type?: 'parallel' | 'sequential' | 'moderator'
+  agent?: {
+    name: string
+    icon: string
+  }
+}
+
+// Represents the structured data received from the SSE stream.
+export interface StreamEvent {
+  type: 'status_update' | 'agent_response' | 'debate_complete' | 'error'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any // Allows for flexible data properties
 }
 
 export interface Agent {
@@ -58,4 +76,4 @@ export interface DebateRequest {
   topic: string
   agent_ids?: string[]
   panel_id?: string
-} 
+}
