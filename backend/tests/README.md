@@ -11,11 +11,11 @@ This directory contains unit tests for the Parliament backend system.
 
 ### Run all tests
 ```bash
+# Using the test runner script
+./run_tests.py
+
 # Using pytest directly
 uv run pytest tests/ -v
-
-# Using the test runner script
-uv run python run_tests.py
 ```
 
 ### Run specific test file
@@ -25,16 +25,16 @@ uv run pytest tests/test_langgraph_structure.py -v
 
 ### Run tests with coverage
 ```bash
+# Using the test runner script
+./run_tests.py --coverage
+
 # Using pytest directly
 uv run pytest tests/ --cov=. --cov-report=html
-
-# Using the test runner script
-uv run python run_tests.py --coverage
 ```
 
 ### Run tests quietly
 ```bash
-uv run python run_tests.py --quiet
+./run_tests.py --quiet
 ```
 
 ## Test Categories
@@ -99,7 +99,6 @@ class TestMyFeature:
 
 ## Notes
 
-- Tests avoid making actual LLM calls to avoid credential requirements
-- Lazy initialization of LLM instances is tested without triggering actual initialization
-- Feature flag tests use environment variable manipulation
-- All tests should pass without external service configuration
+- Tests avoid making actual LLM calls to avoid credential requirements.
+- **Orchestrator Feature Flag**: The system can switch between the legacy and LangGraph orchestrators via the `USE_LANGGRAPH_ORCHESTRATOR` environment variable. Tests should account for both configurations where applicable.
+- All tests should pass without external service configuration.
