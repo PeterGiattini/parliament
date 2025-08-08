@@ -119,3 +119,313 @@ def test_orchestrator_with_duplicate_names(mock_chat_vertex, mock_llm):
     # Test that name-based lookup would be ambiguous (this is why we use IDs)
     agents_by_name = [a for a in agents if a.name == "Test Agent"]
     assert len(agents_by_name) == 2  # Both agents have the same name
+
+
+# Tests for _get_randomized_agents internal function
+# Testing internal function directly due to complex setup required by public API
+@patch("langgraph_debate_orchestrator.ChatVertexAI")
+class TestGetRandomizedAgents:
+    """Test the _get_randomized_agents internal function."""
+
+    def test_empty_agents_list(self, mock_chat_vertex, mock_llm):
+        """Test behavior with empty agents list."""
+        mock_chat_vertex.return_value = mock_llm
+        orchestrator = LangGraphDebateOrchestrator([])
+
+        result = orchestrator._get_randomized_agents()  # noqa: SLF001
+        assert result == []
+
+    def test_single_agent_no_exclusion(self, mock_chat_vertex, mock_llm):
+        """Test single agent without exclusion constraint."""
+        mock_chat_vertex.return_value = mock_llm
+        agent = Agent(
+            id="single-agent",
+            name="Single Agent",
+            description="A single agent",
+            system_prompt="You are a single agent.",
+            color="#000000",
+            icon="🤖",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567890,
+            usage_count=0,
+        )
+        orchestrator = LangGraphDebateOrchestrator([agent])
+
+        result = orchestrator._get_randomized_agents()  # noqa: SLF001
+        assert result == [agent]
+
+    def test_single_agent_with_exclusion(self, mock_chat_vertex, mock_llm):
+        """Test single agent with exclusion constraint (should ignore constraint)."""
+        mock_chat_vertex.return_value = mock_llm
+        agent = Agent(
+            id="single-agent",
+            name="Single Agent",
+            description="A single agent",
+            system_prompt="You are a single agent.",
+            color="#000000",
+            icon="🤖",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567890,
+            usage_count=0,
+        )
+        orchestrator = LangGraphDebateOrchestrator([agent])
+
+        # Even though we exclude the only agent, it should still be returned
+        result = orchestrator._get_randomized_agents(  # noqa: SLF001
+            exclude_first_agent_id="single-agent"
+        )
+        assert result == [agent]
+
+    @patch("random.shuffle")
+    def test_exclude_first_agent_triggered(
+        self, mock_shuffle, mock_chat_vertex, mock_llm
+    ):
+        """Test that excluded agent is moved from first position when constraint applies."""
+        mock_chat_vertex.return_value = mock_llm
+
+        agent1 = Agent(
+            id="agent-1",
+            name="Agent 1",
+            description="First agent",
+            system_prompt="You are agent 1.",
+            color="#FF0000",
+            icon="🤖",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567890,
+            usage_count=0,
+        )
+        agent2 = Agent(
+            id="agent-2",
+            name="Agent 2",
+            description="Second agent",
+            system_prompt="You are agent 2.",
+            color="#00FF00",
+            icon="🧠",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567891,
+            usage_count=0,
+        )
+        agent3 = Agent(
+            id="agent-3",
+            name="Agent 3",
+            description="Third agent",
+            system_prompt="You are agent 3.",
+            color="#0000FF",
+            icon="👾",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567892,
+            usage_count=0,
+        )
+
+        orchestrator = LangGraphDebateOrchestrator([agent1, agent2, agent3])
+
+        # Mock shuffle to put agent1 first (the one we want to exclude)
+        def shuffle_side_effect(agent_list) -> None:
+            agent_list[:] = [agent1, agent2, agent3]
+
+        mock_shuffle.side_effect = shuffle_side_effect
+
+        result = orchestrator._get_randomized_agents(exclude_first_agent_id="agent-1")  # noqa: SLF001
+
+        # Expected: agent1 moved from front to back
+        assert result == [agent2, agent3, agent1]
+        mock_shuffle.assert_called_once()
+
+    @patch("random.shuffle")
+    def test_exclude_first_agent_not_triggered(
+        self, mock_shuffle, mock_chat_vertex, mock_llm
+    ):
+        """Test that order is preserved when excluded agent is not first."""
+        mock_chat_vertex.return_value = mock_llm
+
+        agent1 = Agent(
+            id="agent-1",
+            name="Agent 1",
+            description="First agent",
+            system_prompt="You are agent 1.",
+            color="#FF0000",
+            icon="🤖",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567890,
+            usage_count=0,
+        )
+        agent2 = Agent(
+            id="agent-2",
+            name="Agent 2",
+            description="Second agent",
+            system_prompt="You are agent 2.",
+            color="#00FF00",
+            icon="🧠",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567891,
+            usage_count=0,
+        )
+        agent3 = Agent(
+            id="agent-3",
+            name="Agent 3",
+            description="Third agent",
+            system_prompt="You are agent 3.",
+            color="#0000FF",
+            icon="👾",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567892,
+            usage_count=0,
+        )
+
+        orchestrator = LangGraphDebateOrchestrator([agent1, agent2, agent3])
+
+        # Mock shuffle to put agent1 in middle (not first)
+        def shuffle_side_effect(agent_list) -> None:
+            agent_list[:] = [agent2, agent1, agent3]
+
+        mock_shuffle.side_effect = shuffle_side_effect
+
+        result = orchestrator._get_randomized_agents(exclude_first_agent_id="agent-1")  # noqa: SLF001
+
+        # Expected: order preserved as agent1 is not first
+        assert result == [agent2, agent1, agent3]
+        mock_shuffle.assert_called_once()
+
+    @patch("random.shuffle")
+    def test_exclude_nonexistent_agent(self, mock_shuffle, mock_chat_vertex, mock_llm):
+        """Test behavior when excluding an agent that doesn't exist."""
+        mock_chat_vertex.return_value = mock_llm
+
+        agent1 = Agent(
+            id="agent-1",
+            name="Agent 1",
+            description="First agent",
+            system_prompt="You are agent 1.",
+            color="#FF0000",
+            icon="🤖",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567890,
+            usage_count=0,
+        )
+        agent2 = Agent(
+            id="agent-2",
+            name="Agent 2",
+            description="Second agent",
+            system_prompt="You are agent 2.",
+            color="#00FF00",
+            icon="🧠",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567891,
+            usage_count=0,
+        )
+
+        orchestrator = LangGraphDebateOrchestrator([agent1, agent2])
+
+        # Mock shuffle to put agent1 first
+        def shuffle_side_effect(agent_list) -> None:
+            agent_list[:] = [agent1, agent2]
+
+        mock_shuffle.side_effect = shuffle_side_effect
+
+        result = orchestrator._get_randomized_agents(  # noqa: SLF001
+            exclude_first_agent_id="nonexistent-agent"
+        )
+
+        # Expected: order preserved as excluded agent doesn't exist
+        assert result == [agent1, agent2]
+        mock_shuffle.assert_called_once()
+
+    @patch("random.shuffle")
+    def test_no_exclusion_parameter(self, mock_shuffle, mock_chat_vertex, mock_llm):
+        """Test behavior when no exclusion parameter is provided."""
+        mock_chat_vertex.return_value = mock_llm
+
+        agent1 = Agent(
+            id="agent-1",
+            name="Agent 1",
+            description="First agent",
+            system_prompt="You are agent 1.",
+            color="#FF0000",
+            icon="🤖",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567890,
+            usage_count=0,
+        )
+        agent2 = Agent(
+            id="agent-2",
+            name="Agent 2",
+            description="Second agent",
+            system_prompt="You are agent 2.",
+            color="#00FF00",
+            icon="🧠",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567891,
+            usage_count=0,
+        )
+
+        orchestrator = LangGraphDebateOrchestrator([agent1, agent2])
+
+        # Mock shuffle to put agent1 first
+        def shuffle_side_effect(agent_list) -> None:
+            agent_list[:] = [agent1, agent2]
+
+        mock_shuffle.side_effect = shuffle_side_effect
+
+        result = orchestrator._get_randomized_agents()  # noqa: SLF001
+
+        # Expected: shuffled order preserved
+        assert result == [agent1, agent2]
+        mock_shuffle.assert_called_once()
+
+    @patch("random.shuffle")
+    def test_exclude_first_agent_with_none_parameter(
+        self, mock_shuffle, mock_chat_vertex, mock_llm
+    ):
+        """Test behavior when exclude_first_agent_id is None."""
+        mock_chat_vertex.return_value = mock_llm
+
+        agent1 = Agent(
+            id="agent-1",
+            name="Agent 1",
+            description="First agent",
+            system_prompt="You are agent 1.",
+            color="#FF0000",
+            icon="🤖",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567890,
+            usage_count=0,
+        )
+        agent2 = Agent(
+            id="agent-2",
+            name="Agent 2",
+            description="Second agent",
+            system_prompt="You are agent 2.",
+            color="#00FF00",
+            icon="🧠",
+            tags=["test"],
+            is_built_in=False,
+            created_at=1234567891,
+            usage_count=0,
+        )
+
+        orchestrator = LangGraphDebateOrchestrator([agent1, agent2])
+
+        # Mock shuffle to put agent1 first
+        def shuffle_side_effect(agent_list) -> None:
+            agent_list[:] = [agent1, agent2]
+
+        mock_shuffle.side_effect = shuffle_side_effect
+
+        result = orchestrator._get_randomized_agents(exclude_first_agent_id=None)  # noqa: SLF001
+
+        # Expected: shuffled order preserved as no exclusion is specified
+        assert result == [agent1, agent2]
+        mock_shuffle.assert_called_once()

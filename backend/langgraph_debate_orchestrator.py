@@ -32,6 +32,9 @@ class DebateState(TypedDict):
     round_agent_order: list[models.Agent]
     current_agent_index: int
     status_context: dict[str, Any] | None
+    # The agent ID who spoke last in the previous round (used to avoid
+    # back-to-back turns)
+    last_speaker_id: str | None
 
 
 class LangGraphDebateOrchestrator:
@@ -109,6 +112,7 @@ class LangGraphDebateOrchestrator:
             round_agent_order=[],
             current_agent_index=0,
             status_context=None,
+            last_speaker_id=None,
         )
 
         last_status_context = None
@@ -189,8 +193,13 @@ class LangGraphDebateOrchestrator:
             "round_title": self.round_titles[round_num],
             "round_type": "sequential",
         }
+        # Avoid back-to-back turns by not starting with the prior round's last
+        # speaker (if available)
+        exclude_first = state.get("last_speaker_id")
         return {
-            "round_agent_order": self._get_randomized_agents(),
+            "round_agent_order": self._get_randomized_agents(
+                exclude_first_agent_id=exclude_first,
+            ),
             "status_context": status_context,
         }
 
@@ -208,7 +217,10 @@ class LangGraphDebateOrchestrator:
             "code": "AGENT_TURN_STARTING",
             "round_number": round_num,
             "round_title": self.round_titles[round_num],
-            "agent": {"name": agent.name, "icon": agent.icon},
+            "agent": {
+                "name": agent.name,
+                "icon": agent.icon,
+            },
         }
 
         if round_num == ROUND_REBUTTAL:
@@ -236,6 +248,9 @@ class LangGraphDebateOrchestrator:
                 "current_agent_index": 0,
                 "round_agent_order": [],  # Clear order for the next round
                 "status_context": status_context,
+                # Record the last speaker so the next sequential round can avoid
+                # starting with them
+                "last_speaker_id": agent.id,
             }
 
         # Otherwise, just advance the agent index.
@@ -266,10 +281,32 @@ class LangGraphDebateOrchestrator:
             "status_context": status_context,
         }
 
-    def _get_randomized_agents(self) -> list[models.Agent]:
-        """Get agents in randomized order."""
+    def _get_randomized_agents(
+        self, *, exclude_first_agent_id: str | None = None
+    ) -> list[models.Agent]:
+        """Get agents in randomized order.
+
+        If ``exclude_first_agent_id`` is provided and there is more than one
+        agent, the returned order will not start with that agent. This avoids a
+        single agent speaking at the end of one round and immediately again at
+        the start of the next.
+
+        In single-agent "debates", the constraint cannot be satisfied and the
+        lone agent will be returned as-is.
+        """
+        if not self.agents:
+            return []
         agents_copy = self.agents.copy()
         random.shuffle(agents_copy)
+
+        if (
+            exclude_first_agent_id
+            and len(agents_copy) > 1
+            and agents_copy[0].id == exclude_first_agent_id
+        ):
+            # Rotate the list so the excluded agent is not first
+            first = agents_copy.pop(0)
+            agents_copy.append(first)
         return agents_copy
 
     async def _get_rebuttal(
