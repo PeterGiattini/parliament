@@ -160,6 +160,7 @@ class LangGraphDebateOrchestrator:
             "code": "ROUND_STARTING",
             "round_number": ROUND_OPENING,
             "round_title": self.round_titles[ROUND_OPENING],
+            "round_type": "parallel",
         }
         tasks = [
             self._get_agent_response(agent, state["topic"], "opening_statement")
@@ -186,6 +187,7 @@ class LangGraphDebateOrchestrator:
             "code": "ROUND_STARTING",
             "round_number": round_num,
             "round_title": self.round_titles[round_num],
+            "round_type": "sequential",
         }
         return {
             "round_agent_order": self._get_randomized_agents(),
@@ -249,6 +251,7 @@ class LangGraphDebateOrchestrator:
             "code": "ROUND_STARTING",
             "round_number": ROUND_SYNTHESIS,
             "round_title": self.round_titles[ROUND_SYNTHESIS],
+            "round_type": "moderator",
         }
         response = await self._get_synthesis(state["topic"], state["debate_transcript"])
 
