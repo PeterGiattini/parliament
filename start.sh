@@ -262,11 +262,9 @@ if [ "$VERBOSE" = true ]; then
         wait
     }
     
-    # Start log monitoring
-    tail_logs &
-    
-    # Wait for user interrupt
-    wait
+    # Start log monitoring in the foreground so PIDs are captured in this shell
+    # and cleanup can terminate them on exit
+    tail_logs
 else
     echo -e "${GREEN}Useful commands:${NC}"
     echo -e "  ${CYAN}View backend logs:${NC}   tail -f /tmp/parliament_backend.log"
