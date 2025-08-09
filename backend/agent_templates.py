@@ -2,17 +2,34 @@
 
 from typing import Any
 
-from debate_constants import AGENT_DIRECTIVES
 from models import Agent, AgentConfig
+
+AGENT_DIRECTIVES = {
+    "stance_requirement": (
+        "Your first sentence must state your position. You must then immediately "
+        "present your single most compelling argument to support that position."
+    ),
+    "grounded_speculation": (
+        "Grounded Speculation: To make your arguments concrete, you are permitted "
+        "to introduce plausible, specific data points, scenarios, or outcomes. You "
+        'must preface these with a phrase like "Assuming...", "If we project '
+        'that...", "Let\'s assume for a moment that...", "If this policy were '
+        'implemented, we might see...", "The potential consequences could '
+        'include...", "This could lead to scenarios where...", "Assuming current '
+        'technology trends...", "Based on typical implementation patterns...", or '
+        "similar qualifying language."
+    ),
+    "persona_constraint": (
+        "Constraint: Do not refer to your own role or persona (e.g., do not say "
+        '"As an economist..." or "From an economic perspective..."). Argue from '
+        "your perspective, don't describe it."
+    ),
+}
 
 
 def get_common_directives() -> str:
     """Return common directives that apply to all agents."""
-    return (
-        f"{AGENT_DIRECTIVES['stance_requirement']}\n\n"
-        f"{AGENT_DIRECTIVES['grounded_speculation']}\n\n"
-        f"{AGENT_DIRECTIVES['persona_constraint']}"
-    )
+    return "\n\n".join(AGENT_DIRECTIVES.values())
 
 
 def get_agent_template(config: AgentConfig) -> dict[str, Any]:

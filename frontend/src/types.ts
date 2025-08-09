@@ -59,7 +59,14 @@ export type DebateMessage =
 
 // Represents a structured status update from the orchestrator.
 export interface StatusUpdate {
-  code: 'ROUND_STARTING' | 'AGENT_TURN_STARTING' | 'SYNTHESIS' | 'END'
+  code:
+    | 'ROUND_STARTING'
+    | 'AGENT_TURN_STARTING'
+    | 'MODERATOR_ROUND'
+    | 'SETUP_SEQUENTIAL_ROUND'
+    | 'SEQUENTIAL_TURN'
+    | 'OPENING_STATEMENTS'
+    | 'END'
   round_number?: number
   round_title?: string
   round_type?: 'parallel' | 'sequential' | 'moderator'

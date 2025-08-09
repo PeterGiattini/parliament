@@ -54,8 +54,8 @@ const DebateStream: React.FC<DebateStreamProps> = ({ messages, isDebating, topic
       case 'AGENT_TURN_STARTING':
         statusText = `${status.agent?.name} is thinking...`
         break
-      case 'SYNTHESIS':
-        statusText = 'Generating Synthesis...'
+      case 'MODERATOR_ROUND':
+        statusText = 'Moderator is thinking...'
         break
       default:
         statusText = 'Live Debate in Progress'
@@ -71,7 +71,7 @@ const DebateStream: React.FC<DebateStreamProps> = ({ messages, isDebating, topic
 
   const footerThinkingLabel = () => {
     if (!isDebating) return null
-    const isModerator = status?.code === 'SYNTHESIS'
+    const isModerator = status?.code === 'MODERATOR_ROUND'
     const label = isModerator ? 'Moderator is thinking' : 'Thinking'
     return (
       <div className="flex justify-center py-4">
