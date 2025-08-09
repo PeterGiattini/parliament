@@ -5,9 +5,9 @@ import json
 import os
 import random
 from collections.abc import AsyncGenerator
-from typing import Any, TypedDict
+from typing import Any, Protocol, TypedDict
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_google_vertexai import ChatVertexAI
 from langgraph.graph import END, StateGraph
 
@@ -25,6 +25,12 @@ LLM_CONFIG = {
     "max_output_tokens": 2048,
     "location": "us-central1",
 }
+
+
+class LLMProtocol(Protocol):
+    """Protocol for LLM interface used by the orchestrator."""
+
+    async def ainvoke(self, messages: list[BaseMessage]) -> BaseMessage: ...  # noqa: D102
 
 
 class DebateState(TypedDict):
@@ -53,11 +59,14 @@ class LangGraphDebateOrchestrator:
     """
 
     def __init__(
-        self, agents: list[models.Agent], debate_spec: DebateSpec | None = None
+        self,
+        agents: list[models.Agent],
+        debate_spec: DebateSpec | None = None,
+        llm: LLMProtocol | None = None,
     ) -> None:
         """Initialize the debate orchestrator."""
         self.agents = agents
-        self.llm = ChatVertexAI(
+        self.llm = llm or ChatVertexAI(
             model_name=LLM_CONFIG["model_name"],
             temperature=LLM_CONFIG["temperature"],
             max_output_tokens=LLM_CONFIG["max_output_tokens"],

@@ -50,6 +50,16 @@ ignore = [
     "ANN001",  # missing type annotations for function arguments
     "PLR2004",  # magic numbers (common in tests)
     "E501",  # line too long (allow longer lines in tests)
+    "D100",  # missing docstring in public module
+    "D101",  # missing docstring in public class
+    "D102",  # missing docstring in public method
+    "D103",  # missing docstring in public function
+    "D107",  # missing docstring in __init__
+    "ARG001",  # unused function argument (common in test fixtures)
+    "ARG002",  # unused method argument (common in test mocks)
+    "ANN401",  # dynamically typed expressions (common in test mocks)
+    "PT011",  # pytest.raises too broad (tests often use broad exceptions)
+
 ]
 
 [tool.pytest.ini_options]

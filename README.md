@@ -112,12 +112,30 @@ npm run dev
 ```
 
 ### Testing
-The backend includes a test suite using `pytest`. You can run tests using the provided script:
+The backend includes a lean, deterministic test suite using `pytest`.
+Tests use a fake LLM for fast, reliable execution without external dependencies.
+
+#### Running Tests
 ```bash
 cd backend
-./run_tests.py
+uv run pytest -q                    # Run all tests quietly
+uv run pytest -v                    # Run all tests with verbose output
+uv run pytest tests/                # Run all tests (default behavior)
+uv run pytest tests/test_file.py    # Run specific test file
+uv run pytest -k "test_name"        # Run tests matching pattern
+uv run pytest --cov=. --cov-report=html  # Run with coverage report
 ```
-For more details, see `backend/tests/README.md`.
+
+#### Test Strategy
+The test suite focuses on critical architectural invariants rather than brittle content assertions:
+- **DebateSpec validation**: Ensures YAML configs load and validate correctly
+- **Router flow**: Verifies the debate progresses through rounds and reaches completion
+- **Transcript shape**: Confirms output structure remains stable across runs
+- **Budget guards**: Tests recursion limits and error handling
+
+Tests are designed to be fast and require no external services or credentials.
+
+For detailed testing documentation, see `backend/tests/README.md`.
 
 ### Development Tools
 - **Dependency Management**: Uses `uv` for Python dependencies
