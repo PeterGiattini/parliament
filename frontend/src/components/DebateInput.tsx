@@ -14,26 +14,26 @@ const DebateInput: React.FC<DebateInputProps> = ({ onStartDebate, isDebating, cu
   const [topic, setTopic] = useState('')
   const [selectedAgents, setSelectedAgents] = useState<Agent[]>([])
   const [showAgentSelector, setShowAgentSelector] = useState(false)
-  const [showPanelManager, setShowPanelManager] = useState(false)
   const [currentPanelId, setCurrentPanelId] = useState<string | null>(null)
+
+  const attemptStartDebate = () => {
+    if (!topic.trim() || isDebating) return
+    const agentIds = selectedAgents.length > 0 ? selectedAgents.map(agent => agent.id) : []
+    // Auto-close the agent selector when starting a debate
+    setShowAgentSelector(false)
+    onStartDebate(topic.trim(), agentIds, currentPanelId || undefined)
+    setTopic('')
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (topic.trim() && !isDebating) {
-      const agentIds = selectedAgents.length > 0 ? selectedAgents.map(agent => agent.id) : []
-      onStartDebate(topic.trim(), agentIds, currentPanelId || undefined)
-      setTopic('')
-    }
+    attemptStartDebate()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && e.ctrlKey) {
       e.preventDefault()
-      if (topic.trim() && !isDebating) {
-        const agentIds = selectedAgents.length > 0 ? selectedAgents.map(agent => agent.id) : []
-        onStartDebate(topic.trim(), agentIds, currentPanelId || undefined)
-        setTopic('')
-      }
+      attemptStartDebate()
     }
   }
 
@@ -131,6 +131,24 @@ const DebateInput: React.FC<DebateInputProps> = ({ onStartDebate, isDebating, cu
               </button>
             </div>
 
+            {showAgentSelector && !isDebating && (
+              <div className="pt-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <AgentSelector
+                    selectedAgents={selectedAgents}
+                    onAgentSelect={handleAgentSelect}
+                    onAgentDeselect={handleAgentDeselect}
+                    onGenerateAgent={handleGenerateAgent}
+                  />
+                  <PanelManager
+                    selectedAgents={selectedAgents}
+                    onLoadPanel={handleLoadPanel}
+                    onSetCurrentPanel={handleSetCurrentPanel}
+                  />
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={!topic.trim() || isDebating}
@@ -142,23 +160,6 @@ const DebateInput: React.FC<DebateInputProps> = ({ onStartDebate, isDebating, cu
           </form>
         )}
       </div>
-
-      {/* Agent Selection Panel */}
-      {showAgentSelector && !isDebating && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <AgentSelector
-            selectedAgents={selectedAgents}
-            onAgentSelect={handleAgentSelect}
-            onAgentDeselect={handleAgentDeselect}
-            onGenerateAgent={handleGenerateAgent}
-          />
-          <PanelManager
-            selectedAgents={selectedAgents}
-            onLoadPanel={handleLoadPanel}
-            onSetCurrentPanel={handleSetCurrentPanel}
-          />
-        </div>
-      )}
     </div>
   )
 }
