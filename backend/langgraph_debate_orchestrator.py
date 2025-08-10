@@ -2,12 +2,13 @@
 
 import asyncio
 import json
+import logging
 import os
 import random
 from collections.abc import AsyncGenerator
 from typing import Any, Protocol, TypedDict
 
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_google_vertexai import ChatVertexAI
 from langgraph.graph import END, StateGraph
 
@@ -19,11 +20,16 @@ from debate_spec import (
     load_default_debate_spec,
 )
 
+logger = logging.getLogger(__name__)
+
+
 LLM_CONFIG = {
     "model_name": "gemini-2.0-flash",
     "temperature": 0.7,
     "max_output_tokens": 2048,
     "location": "us-central1",
+    "max_retries": 3,
+    "timeout": 30,
 }
 
 
@@ -72,6 +78,8 @@ class LangGraphDebateOrchestrator:
             max_output_tokens=LLM_CONFIG["max_output_tokens"],
             project=os.getenv("GOOGLE_CLOUD_PROJECT"),
             location=LLM_CONFIG["location"],
+            max_retries=LLM_CONFIG["max_retries"],
+            timeout=LLM_CONFIG["timeout"],
         )
         self.debate_spec: DebateSpec = debate_spec or load_default_debate_spec()
         self.graph = self._build_debate_graph()
@@ -414,17 +422,23 @@ class LangGraphDebateOrchestrator:
         prompt_template: str,
         content: str,
     ) -> str:
-        prompt_suffix = prompt_template
-        if agent is None:
-            full_prompt = f"{prompt_suffix}\n\n{content}"
-        else:
-            full_prompt = f"{agent.system_prompt}\n\n{prompt_suffix}\n\n{content}"
+        messages = []
 
-        messages = [HumanMessage(content=full_prompt)]
+        # Add system message for agent instructions if available
+        if agent is not None:
+            messages.append(SystemMessage(content=agent.system_prompt))
+
+        # Add the round-specific prompt template as a system message
+        messages.append(SystemMessage(content=prompt_template))
+
+        # Add the actual debate content as a human message
+        messages.append(HumanMessage(content=content))
+
         try:
             response = await self.llm.ainvoke(messages)
         except (ValueError, RuntimeError, ConnectionError) as e:
             who = "Moderator" if agent is None else agent.name
+            logger.exception("Error generating response for %s", who)
             return f"Error generating response for {who}: {e!s}"
         else:
             return response.content
