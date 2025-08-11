@@ -72,7 +72,6 @@ class AgentManager:
 
     def generate_agent_from_prompt(self, prompt: str, name: str | None = None) -> Agent:
         """Generate an agent from a natural language description."""
-        # This is a simplified implementation
         # In a real system, this would use an LLM to generate the agent
 
         # Use provided name or extract from prompt
