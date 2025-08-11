@@ -9,9 +9,11 @@ from collections.abc import AsyncGenerator
 from typing import Any, TypedDict
 
 from langchain_core.language_models import BaseLanguageModel
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.tools import Tool
 from langchain_google_vertexai import ChatVertexAI
 from langgraph.graph import END, StateGraph
+from langgraph.prebuilt import create_react_agent
 
 import models
 from debate_spec import (
@@ -76,6 +78,11 @@ class LangGraphDebateOrchestrator:
             model_kwargs=MODEL_CONFIG,
         )
         self.debate_spec: DebateSpec = debate_spec or load_default_debate_spec()
+
+        self.agent_tools: dict[str, Tool] = {
+            agent.id: self._create_agent_tool(agent) for agent in self.agents
+        }
+
         self.graph = self._build_debate_graph()
         self.round_titles = {r: p.title for r, p in self.debate_spec.rounds.items()}
         self._ordered_rounds: list[int] = sorted(self.debate_spec.rounds.keys())
@@ -86,6 +93,33 @@ class LangGraphDebateOrchestrator:
                 if self.debate_spec.type_for_round(r) == RoundType.sequential
             ),
             None,
+        )
+
+    def _create_agent_tool(self, agent: models.Agent) -> Tool:
+        """Create a tool for an agent, wrapping a ReAct subgraph."""
+        system_message = SystemMessage(content=agent.system_prompt)
+        agent_runnable = create_react_agent(self.llm, tools=[])
+
+        async def _agent_tool_func(prompt: str) -> str:
+            """Execute the agent's tool function asynchronously."""
+            messages = [system_message, HumanMessage(content=prompt)]
+            config = {"recursion_limit": 15}
+            final_state = await agent_runnable.ainvoke(
+                {"messages": messages}, config=config
+            )
+            for message in reversed(final_state["messages"]):
+                if isinstance(message, AIMessage):
+                    return message.content
+            return "Agent failed to produce a final answer."
+
+        return Tool(
+            name=agent.name.replace(" ", "_"),
+            description=(
+                f"A debater named {agent.name}. "
+                "Use this to get their opinion on a topic."
+            ),
+            func=_agent_tool_func,
+            coroutine=_agent_tool_func,
         )
 
     def _build_debate_graph(self) -> StateGraph:
@@ -303,7 +337,9 @@ class LangGraphDebateOrchestrator:
         }
 
     def _get_randomized_agents(
-        self, *, exclude_first_agent_id: str | None = None
+        self,
+        *,
+        exclude_first_agent_id: str | None = None,
     ) -> list[models.Agent]:
         """Get agents in randomized order.
 
@@ -331,7 +367,10 @@ class LangGraphDebateOrchestrator:
         return agents_copy
 
     def _create_transcript_entry(
-        self, agent: models.Agent | str, response: str, round_num: int
+        self,
+        agent: models.Agent | str,
+        response: str,
+        round_num: int,
     ) -> dict[str, Any]:
         """Create a standardized dictionary for a transcript entry."""
         if isinstance(agent, models.Agent):
@@ -383,7 +422,9 @@ class LangGraphDebateOrchestrator:
     # Round utilities
     # ---------------------------------------------------------------------
     def _build_round_context(
-        self, state: DebateState, strategy: RoundContextStrategy
+        self,
+        state: DebateState,
+        strategy: RoundContextStrategy,
     ) -> str:
         topic = state["topic"]
         transcript = state.get("debate_transcript", [])
@@ -415,23 +456,26 @@ class LangGraphDebateOrchestrator:
         prompt_template: str,
         content: str,
     ) -> str:
-        messages = []
+        """Invoke an agent's tool or the moderator LLM."""
+        prompt_suffix = prompt_template
 
-        # Add system message for agent instructions if available
-        if agent is not None:
-            messages.append(SystemMessage(content=agent.system_prompt))
+        # Moderator is a direct LLM call, not a ReAct agent tool.
+        if agent is None:
+            full_prompt = f"{prompt_suffix}\n\n{content}"
+            messages = [HumanMessage(content=full_prompt)]
+            try:
+                response = await self.llm.ainvoke(messages)
+            except (ValueError, RuntimeError, ConnectionError) as e:
+                return f"Error generating response for Moderator: {e!s}"
+            else:
+                return response.content
 
-        # Add the round-specific prompt template as a system message
-        messages.append(SystemMessage(content=prompt_template))
-
-        # Add the actual debate content as a human message
-        messages.append(HumanMessage(content=content))
-
+        # Regular agents are invoked as tools (which wrap ReAct subgraphs).
+        agent_tool = self.agent_tools[agent.id]
+        prompt = f"{prompt_suffix}\n\n{content}"
         try:
-            response = await self.llm.ainvoke(messages)
+            response = await agent_tool.coroutine(prompt)
         except (ValueError, RuntimeError, ConnectionError) as e:
-            who = "Moderator" if agent is None else agent.name
-            logger.exception("Error generating response for %s", who)
-            return f"Error generating response for {who}: {e!s}"
+            return f"Error generating response for {agent.name}: {e!s}"
         else:
-            return response.content
+            return response

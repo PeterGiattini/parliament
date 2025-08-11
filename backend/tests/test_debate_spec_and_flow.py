@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from langchain_core.runnables import Runnable
 
 from agent_templates import get_default_agents
 from debate_spec import (
@@ -14,14 +15,23 @@ from debate_spec import (
 from langgraph_debate_orchestrator import LangGraphDebateOrchestrator
 
 
-class FakeLLM:
+class FakeLLM(Runnable):
     """Deterministic fake LLM used in tests."""
 
     def __init__(self, content: str = "TEST-RESPONSE") -> None:
         self._content = content
 
-    async def ainvoke(self, messages: list[Any]) -> Any:  # pragma: no cover - trivial
+    def invoke(self, messages: list[Any], config: dict | None = None) -> Any:
         return SimpleNamespace(content=self._content)
+
+    async def ainvoke(self, messages: list[Any], config: dict | None = None) -> Any:  # pragma: no cover - trivial
+        return SimpleNamespace(content=self._content)
+
+    def bind_tools(self, tools: list[Any]) -> "FakeLLM":
+        """Mock for the bind_tools method."""
+        return self
+
+
 
 
 @pytest.fixture

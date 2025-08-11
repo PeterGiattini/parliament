@@ -2,18 +2,26 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from langchain_core.runnables import Runnable
 from langgraph.errors import GraphRecursionError
 
 from agent_templates import get_default_agents
 from langgraph_debate_orchestrator import LangGraphDebateOrchestrator
 
 
-class FakeLLM:
+class FakeLLM(Runnable):
     def __init__(self, content: str = "TEST-RESPONSE") -> None:
         self._content = content
 
-    async def ainvoke(self, messages: list[Any]) -> Any:  # pragma: no cover - trivial
+    def invoke(self, messages: list[Any], config: dict | None = None) -> Any:
         return SimpleNamespace(content=self._content)
+
+    async def ainvoke(self, messages: list[Any], config: dict | None = None) -> Any:
+        return SimpleNamespace(content=self._content)
+
+    def bind_tools(self, tools: list[Any]) -> "FakeLLM":
+        """Mock for the bind_tools method."""
+        return self
 
 
 @pytest.mark.asyncio
