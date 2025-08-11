@@ -25,6 +25,7 @@ Currently implements a 4-round debate format:
 - **Frontend**: React with streaming UI
 - **AI**: Vertex AI (Gemini 2.0 Flash) for agent responses
 - **Persistence**: In-memory with JSON export/import
+- **Observability**: Optional LangSmith integration for tracing and monitoring debate execution
 
 ## Setup
 
@@ -49,6 +50,15 @@ python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 uv sync  # Install dependencies using uv
 ```
+
+**Optional: LangSmith Setup**
+To enable observability and tracing, set up LangSmith:
+1. Create a LangSmith account at [smith.langchain.com](https://smith.langchain.com)
+2. Create a new project for Parliament
+3. Get your API key from the LangSmith dashboard
+4. Add the LangSmith environment variables to your `.env` file
+
+That's it! LangSmith automatically integrates with LangChain/LangGraph when the environment variables are set.
 
 #### Frontend Setup
 ```bash
@@ -78,6 +88,14 @@ GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
 **Required frontend/.env variables:**
 ```
 VITE_API_BASE_URL=http://localhost:8000
+```
+
+**Optional backend/.env variables (LangSmith observability):**
+```
+LANGSMITH_TRACING="true"                    # Enable/disable tracing
+LANGSMITH_ENDPOINT="https://api.smith.langchain.com"
+LANGSMITH_API_KEY="your-langsmith-api-key"
+LANGSMITH_PROJECT="your-parliament-langsmith-project"
 ```
 
 See the `env.example` files for additional optional configuration options.
@@ -134,6 +152,8 @@ The test suite focuses on critical architectural invariants rather than brittle 
 - **Budget guards**: Tests recursion limits and error handling
 
 Tests are designed to be fast and require no external services or credentials.
+
+**Note**: For debugging complex debate execution issues in production, LangSmith tracing provides detailed step-by-step visualization of the debate flow and state changes.
 
 For detailed testing documentation, see `backend/tests/README.md`.
 
