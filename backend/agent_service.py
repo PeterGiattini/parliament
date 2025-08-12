@@ -6,8 +6,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from agent_templates import get_common_directives, get_default_agents
-from models import Agent, AgentCreationRequest, Panel
+from agent_templates import get_agent_template, get_default_agents
+from models import Agent, AgentConfig, AgentCreationRequest, Panel
 
 
 class AgentManager:
@@ -72,35 +72,38 @@ class AgentManager:
 
     def generate_agent_from_prompt(self, prompt: str, name: str | None = None) -> Agent:
         """Generate an agent from a natural language description."""
-        # In a real system, this would use an LLM to generate the agent
-
         # Use provided name or extract from prompt
         if name and name.strip():
             agent_name = name.strip()
         else:
             agent_name = prompt.split()[0] if prompt else "Custom Agent"
 
-        description = f"AI agent with {prompt} characteristics"
+        description = f"An AI agent with the following characteristics: {prompt}"
 
-        # Generate a system prompt using the same directives as built-in agents
-        system_prompt = (
-            f"You are an AI agent with the following characteristics: {prompt}\n\n"
-            f"{get_common_directives()}\n\n"
-            "You participate in debates with the following guidelines:\n"
-            "- Take a clear stance on the topic\n"
-            "- Support your arguments with reasoning and evidence\n"
-            "- Acknowledge valid points from other participants\n"
-            "- Maintain a respectful and constructive tone\n"
-            "- Focus on the most important aspects of the debate\n\n"
-            f"Your communication style should reflect: {prompt}"
+        # Create a generic AgentConfig for the custom agent
+        # This ensures it gets the same base system prompt and directives
+        # as the built-in agents.
+        agent_config = AgentConfig(
+            name=agent_name,
+            role="custom agent",
+            specialization=f"AI agent that embodies the following persona: {prompt}",
+            primary_goal="Engage in the debate according to the user-defined persona.",
+            key_principles=[
+                "Adhere to the user-defined persona and instructions.",
+                "Argue logically and consistently from that persona's perspective.",
+            ],
+            scope="The scope is defined by the user's prompt and the debate topic.",
+            communication_style=(
+                f"The communication style is defined by the user's prompt: {prompt}"
+            ),
+            color=random.choice(  # noqa: S311
+                ["#2563eb", "#7c3aed", "#059669", "#dc2626", "#ea580c", "#0891b2"]
+            ),
+            icon=random.choice(["🤖", "🧠", "💡", "🎯", "⚡", "🌟"]),  # noqa: S311
         )
 
-        # Generate color and icon based on prompt
-        colors = ["#2563eb", "#7c3aed", "#059669", "#dc2626", "#ea580c", "#0891b2"]
-        icons = ["🤖", "🧠", "💡", "🎯", "⚡", "🌟"]
-
-        color = random.choice(colors)  # noqa: S311
-        icon = random.choice(icons)  # noqa: S311
+        # Generate the agent details from the standard template
+        template = get_agent_template(agent_config)
 
         tags = ["custom", "generated"] + [word.lower() for word in prompt.split()[:3]]
 
@@ -108,10 +111,10 @@ class AgentManager:
         request = AgentCreationRequest(
             name=agent_name,
             description=description,
-            system_prompt=system_prompt,
+            system_prompt=template["system_prompt"],
             tags=tags,
-            color=color,
-            icon=icon,
+            color=template["color"],
+            icon=template["icon"],
         )
 
         return self.create_agent(request)

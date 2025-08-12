@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import re
 from collections.abc import AsyncGenerator
 from typing import Any, TypedDict
 
@@ -433,6 +434,24 @@ class LangGraphDebateOrchestrator:
         topic = state["topic"]
         transcript = state.get("debate_transcript", [])
 
+        # Regex-based source extraction is a temporary, brittle solution.
+        # We plan to move to a structured agent output model (e.g., JSON with a
+        # dedicated 'sources' key) to make this process more robust.
+        cited_sources = []
+        for entry in transcript:
+            sources = re.findall(r"(Source: ([^)]+))", entry.get("content", ""))
+            if sources:
+                cited_sources.extend(sources)
+
+        sources_text = ""
+        if cited_sources:
+            unique_sources = sorted(set(cited_sources))
+            sources_text = (
+                "PREVIOUSLY CITED SOURCES:\n"
+                + "\n".join(f"- {s}" for s in unique_sources)
+                + "\n\n"
+            )
+
         if strategy == RoundContextStrategy.topic_only:
             return topic
 
@@ -450,7 +469,8 @@ class LangGraphDebateOrchestrator:
                         f"{entry['content']}",
                     ]
                 )
-            return "\n".join(lines)
+            # Prepend the extracted sources to the context for the agent.
+            return sources_text + "\n".join(lines)
 
         return topic
 
