@@ -47,6 +47,8 @@ if [ ! -f ".env" ]; then
     echo "Creating .env file from template..."
     cp env.example .env
     echo "⚠️  Please edit backend/.env with your Google Cloud credentials"
+    echo "💡 Optional: Add TAVILY_API_KEY for agent research capabilities"
+    echo "💡 Optional: Add LANGSMITH_API_KEY for debate execution tracing"
 fi
 
 cd ..
@@ -73,10 +75,12 @@ echo "🎉 Setup complete!"
 echo ""
 echo "Next steps:"
 echo "1. Configure your Google Cloud credentials in backend/.env"
-echo "2. Quick start: ./start-simple.sh"
-echo "3. Or start manually:"
+echo "2. Optional: Add TAVILY_API_KEY for agent research capabilities"
+echo "3. Optional: Add LANGSMITH_API_KEY for debate execution tracing"
+echo "4. Quick start: ./start.sh"
+echo "5. Or start manually:"
 echo "   - Backend: cd backend && source .venv/bin/activate && uvicorn main:app --reload"
 echo "   - Frontend: cd frontend && npm run dev"
-echo "4. Open http://localhost:5173 in your browser"
+echo "6. Open http://localhost:5173 in your browser"
 echo ""
 echo "For more information, see README.md and STARTUP.md" 

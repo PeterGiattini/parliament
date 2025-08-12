@@ -7,10 +7,16 @@ A multi-agent AI debate system that generates structured, multi-faceted analysis
 Parliament creates AI agents with distinct perspectives who debate user questions in a structured format. The system supports both built-in expert agents (Economist, Ethicist, Technologist, Sociologist) and custom user-generated agents.
 
 ### Debate Structure
-Currently implements a 4-round debate format:
+The system now uses a configurable, declarative debate specification system:
+- **Configurable Rounds**: Debate structure is defined in YAML and supports parallel, sequential, and moderator rounds
+- **Dynamic Flow**: Rounds can be reordered, added, or removed by modifying the debate spec
+- **Context Strategies**: Each round can use different context strategies (topic-only or full transcript)
+- **Custom Prompts**: Each round has its own prompt template for agent guidance
+
+The default debate spec includes:
 1. **Opening Statements**: Each agent independently analyzes the topic
 2. **Rebuttal**: Agents engage with each other's arguments sequentially  
-3. **Surrebuttal**: Agents defend their positions against critiques
+3. **Synthesis & Deeper Insights**: Agents provide final, nuanced perspectives
 4. **Synthesis**: A moderator summarizes key points, areas of agreement, and outstanding questions
 
 ### Key Features
@@ -18,6 +24,9 @@ Currently implements a 4-round debate format:
 - **Panel System**: Assemble and save debate panels for reuse
 - **Export/Import**: Share agents and panels via JSON export/import
 - **Stateful Orchestration**: LangGraph-based, robust, state-driven debate management
+- **Research Integration**: Agents use Tavily web search for evidence-based arguments
+- **ReAct Reasoning**: Agents can perform multi-step reasoning with research tools
+- **Configurable Debate Structure**: Modify debate flow via YAML configuration
 
 ## Architecture
 
@@ -26,6 +35,8 @@ Currently implements a 4-round debate format:
 - **AI**: Vertex AI (Gemini 2.0 Flash) for agent responses
 - **Persistence**: In-memory with JSON export/import
 - **Observability**: Optional LangSmith integration for tracing and monitoring debate execution
+- **Research Tools**: Tavily web search integration for evidence-based agent arguments
+- **Agent Reasoning**: ReAct (Reasoning + Acting) subgraphs for multi-step agent reasoning
 
 ## Setup
 
@@ -98,7 +109,30 @@ LANGSMITH_API_KEY="your-langsmith-api-key"
 LANGSMITH_PROJECT="your-parliament-langsmith-project"
 ```
 
+**Optional backend/.env variables (Research tools):**
+```
+TAVILY_API_KEY="your-tavily-api-key"        # Enable web search for agents
+TAVILY_MAX_RESULTS="5"                      # Number of search results (default: 5)
+TAVILY_TOPIC="general"                      # Search topic bias (default: general)
+```
+
 See the `env.example` files for additional optional configuration options.
+
+## Research Tools
+
+Parliament agents can now perform evidence-based research during debates using the Tavily web search integration:
+
+- **Web Search**: Agents automatically search for factual information to support their arguments
+- **Source Citations**: All research-based claims include inline source citations
+- **Evidence-Based Reasoning**: Agents must back up factual claims with research or clearly state when information is unavailable
+- **Configurable Search**: Adjust search depth, result count, and topic bias via environment variables
+
+To enable research capabilities:
+1. Sign up for a free Tavily API key at [tavily.com](https://tavily.com)
+2. Add `TAVILY_API_KEY=your-key` to your `backend/.env` file
+3. Restart the backend service
+
+Without a Tavily API key, agents will still function but won't have access to web search capabilities.
 
 ## Development
 
@@ -201,8 +235,10 @@ Create agents with simple prompts like:
 
 ## Future Roadmap
 
-- **Customizable Debate Structure**: Configurable debate layer system
-- **Research Tools**: Google Search integration for factual debates
-- **Advanced Agent Features**: LLM-based agent generation and enhanced capabilities
+- **Customizable Debate Structure**: ✅ Configurable debate layer system (implemented)
+- **Research Tools**: ✅ Google Search integration for factual debates (implemented via Tavily)
+- **Advanced Agent Features**: ✅ LLM-based agent generation and enhanced capabilities (implemented)
 - **Multi-model Capability**: Support for different AI models
 - **MCP Integration**: Model Context Protocol integration
+- **Performance Optimization**: Dynamic recursion limit calculation and state summarization
+- **Content Safety**: Filters for fetched web content
