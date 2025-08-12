@@ -1,0 +1,78 @@
+rounds:
+  "1":
+    title: Opening Statements
+    type: parallel
+    context_strategy: topic_only
+    prompt_template: >-
+      **TASK**: Provide your opening statement on the topic below.
+
+      **REASONING PROCESS**:
+      1.  **Deconstruct the Topic**: First, break down the topic into its core components and questions.
+      2.  **Initial Research**: Perform a search to gather foundational knowledge and key statistics about the topic.
+      3.  **Formulate Position**: Based on your persona and initial research, decide on your core position (support/oppose/nuanced).
+      4.  **Identify Strongest Argument**: From your research, identify the single most compelling piece of evidence or line of reasoning that supports your position.
+      5.  **Construct Statement**: Write your opening statement. The first sentence MUST clearly state your position. The rest of the statement should focus entirely on delivering your single strongest argument.
+
+      **TOPIC**:
+  "2":
+    title: Rebuttal
+    type: sequential
+    context_strategy: full_transcript
+    prompt_template: >-
+      **TASK**: Challenge the arguments of the other panelists and deepen the discussion.
+
+      **REASONING PROCESS**:
+      1.  **Review Previously Cited Sources**: Look at the sources cited in the transcript below. Do not search for the same information. Your goal is to find new, complementary, or contradictory evidence.
+      2.  **Deconstruct Opponent's Arguments**: For each opponent, identify their main claim and the evidence they used.
+      3.  **Identify Weaknesses**: Analyze their arguments for logical fallacies, unsupported claims, or weak evidence.
+      4.  **Aggressive Research**: Use the research tool to find conflicting evidence. Dig deeper to find robust, verifiable counterpoints.
+      5.  **Critique Your Own Argument**: Before finalizing your response, ask yourself: "What is the weakest part of my argument? What is the most likely counter-argument?"
+      6.  **Strengthen Your Position**: Perform one final, targeted search to find evidence that strengthens the weakest point in your argument.
+      7.  **Construct Rebuttal**: Write your rebuttal. Directly address the other panelists' points, citing the new evidence you found.
+
+      **DEBATE TRANSCRIPT**:
+  "3":
+    title: Synthesis & Deeper Insights
+    type: sequential
+    context_strategy: full_transcript
+    prompt_template: >-
+      **TASK**: Synthesize the debate and provide a final, more nuanced perspective.
+
+      **REASONING PROCESS**:
+      1.  **Review Previously Cited Sources**: Look at the sources cited in the transcript below. Do not search for the same information. Your goal is to find new, complementary, or contradictory evidence.
+      2.  **Identify the Core Tension**: Read the full transcript. Start by identifying the fundamental point of disagreement or the core trade-off that the debate has revealed.
+      3.  **Search for a Tie-Breaker**: Use the research tool to find one final, powerful piece of evidence that could reframe the debate or offer a path to synthesis.
+      4.  **Critique and Refine**: Before finalizing your response, ask: "Does this new evidence truly address the core tension? Could it be interpreted differently?" Perform one last search to confirm your interpretation or find a final piece of supporting data.
+      5.  **Formulate Final Argument**: Write your concluding statement. Start by summarizing the core tension, then introduce the new evidence you found, and end with a clear, conclusive statement that demonstrates a more nuanced understanding of the topic.
+
+      **DEBATE TRANSCRIPT**:
+  "4":
+    title: Synthesis
+    type: moderator
+    context_strategy: full_transcript
+    prompt_template: >-
+      You are a neutral, objective Moderator. You have been provided with the full
+      transcript of a debate between a panel of expert agents. Your sole purpose is to
+      synthesize the entire debate into a final, balanced summary.
+
+      Do not introduce your own opinions, take a side, or declare a "winner." Your
+      duty is to the user, who needs a clear summary of the discussion.
+
+      Please structure your response using the following markdown format:
+
+      ## Executive Summary
+      A one-paragraph overview of the core tension and the general direction of the
+      debate.
+
+      ## Key Points of Contention
+      Summarize the 2-3 primary areas where the panelists disagreed. For each point,
+      briefly state the opposing views.
+
+      ## Surprising Areas of Agreement
+      Highlight any significant points of consensus or unexpected common ground
+      reached by the panel.
+
+      ## Outstanding Questions
+      Conclude by identifying the most critical unresolved questions or the
+      fundamental trade-offs that remain. Frame these as questions a decision-maker
+      would need to answer next.

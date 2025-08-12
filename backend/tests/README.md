@@ -1,34 +1,33 @@
 # Parliament Backend Tests
 
-This directory contains unit tests for the Parliament backend system.
+This directory contains a lean guardrail suite for the Parliament backend.
+The goal is fast, deterministic feedback while APIs are evolving.
 
-## Test Structure
+## What we test (now)
 
-- `test_langgraph_structure.py` - Tests for LangGraph orchestrator structure and state management
-- `test_debate_orchestrators.py` - Tests for debate orchestrator methods and utilities
+- DebateSpec loads/validates from the default YAML
+- Router reaches END across the current spec (no content-level assertions)
+- Transcript shape is stable at a coarse level (roles/order/counts only)
+- Budget guardrails: small recursion_limit raises a clear error
+
+Files:
+- `test_debate_spec_and_flow.py`
+- `test_budget_guard.py`
 
 ## Running Tests
 
 ### Run all tests
 ```bash
-# Using the test runner script
-./run_tests.py
-
-# Using pytest directly
-uv run pytest tests/ -v
+uv run pytest -q
 ```
 
 ### Run specific test file
 ```bash
-uv run pytest tests/test_langgraph_structure.py -v
+uv run pytest tests/test_debate_spec_and_flow.py -q
 ```
 
 ### Run tests with coverage
 ```bash
-# Using the test runner script
-./run_tests.py --coverage
-
-# Using pytest directly
 uv run pytest tests/ --cov=. --cov-report=html
 ```
 
@@ -37,59 +36,22 @@ uv run pytest tests/ --cov=. --cov-report=html
 ./run_tests.py --quiet
 ```
 
-## Test Categories
+## Categories
 
-### Unit Tests
-- Test individual functions and methods
-- Mock external dependencies (LLM, APIs)
-- Fast execution
-- No external service requirements
+- Unit tests (current): isolated, fast, no external services; fake LLM injected
+- Integration/slow tests (future): to be added once APIs stabilize
 
-### Integration Tests (Future)
-- Test complete workflows
-- May require external services
-- Slower execution
-- Marked with `@pytest.mark.integration`
+## Configuration
 
-### Slow Tests (Future)
-- Tests that take longer to run
-- Marked with `@pytest.mark.slow`
-- Can be excluded with `-m "not slow"`
+Configured in `pyproject.toml`:
+- discover `tests/` with `test_*.py`
+- handy markers for future slow/integration tests
 
-## Test Configuration
+## Writing tests
 
-Tests are configured in `pyproject.toml`:
-- Test discovery: `tests/` directory
-- File pattern: `test_*.py`
-- Class pattern: `Test*`
-- Function pattern: `test_*`
-
-## Writing Tests
-
-### Guidelines
-1. Use descriptive test names that explain what is being tested
-2. Test both success and failure cases
-3. Mock external dependencies to avoid credential requirements
-4. Use setup/teardown methods for test fixtures
-5. Group related tests in test classes
-
-### Example
-```python
-class TestMyFeature:
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.test_data = {...}
-
-    def test_success_case(self):
-        """Test successful operation."""
-        result = my_function(self.test_data)
-        assert result == expected_value
-
-    def test_failure_case(self):
-        """Test error handling."""
-        with pytest.raises(ValueError):
-            my_function(invalid_data)
-```
+- Prefer fakes over networked services; use the `llm` constructor arg to inject a fake
+- Assert structure/shape over wording while features are in flux
+- Keep tests <5 seconds total runtime
 
 ## Test Dependencies
 
@@ -99,5 +61,5 @@ class TestMyFeature:
 
 ## Notes
 
-- Tests avoid making actual LLM calls to avoid credential requirements.
-- All tests should pass without external service configuration.
+- Tests avoid real LLM calls via a deterministic fake LLM
+- All tests pass without external service configuration

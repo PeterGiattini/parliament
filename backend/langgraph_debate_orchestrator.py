@@ -2,24 +2,43 @@
 
 import asyncio
 import json
+import logging
 import os
 import random
+import re
 from collections.abc import AsyncGenerator
 from typing import Any, TypedDict
 
-from langchain_core.messages import HumanMessage
+from langchain_core.language_models import BaseLanguageModel
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.tools import Tool
 from langchain_google_vertexai import ChatVertexAI
 from langgraph.graph import END, StateGraph
+from langgraph.prebuilt import create_react_agent
 
 import models
-from debate_constants import DEBATE_PROMPTS, DEBATE_ROUNDS, LLM_CONFIG
+from debate_spec import (
+    DebateSpec,
+    RoundContextStrategy,
+    RoundType,
+    load_default_debate_spec,
+)
+from tools import get_research_tools
 
-# Round constants
-ROUND_OPENING = 1
-ROUND_REBUTTAL = 2
-ROUND_SURREBUTTAL = 3
-ROUND_SYNTHESIS = 4
-ROUND_COMPLETE = 5
+logger = logging.getLogger(__name__)
+
+
+LLM_CONFIG = {
+    "model_name": "gemini-2.0-flash",
+    "temperature": 0.7,
+    "max_output_tokens": 2048,
+    "location": "us-central1",
+    "max_retries": 3,
+}
+
+MODEL_CONFIG = {
+    "timeout": 30,
+}
 
 
 class DebateState(TypedDict):
@@ -38,35 +57,75 @@ class DebateState(TypedDict):
 
 
 class LangGraphDebateOrchestrator:
-    """Orchestrate debates using a supervisor-based LangGraph.
+    """Orchestrate debates using a supervisor-based, DebateSpec-driven LangGraph.
 
-    Implements the standard four-round structure:
-    1. Opening Statements (parallel)
-    2. Rebuttal (sequential)
-    3. Surrebuttal (sequential)
-    4. Synthesis (moderator)
+    The graph is compiled from a DebateSpec that defines:
+    - rounds (order and titles)
+    - round type (parallel | sequential | moderator)
+    - context strategy per round
+    - prompt template per round
     """
 
-    def __init__(self, agents: list[models.Agent]) -> None:
+    def __init__(
+        self,
+        agents: list[models.Agent],
+        debate_spec: DebateSpec | None = None,
+        llm: BaseLanguageModel | None = None,
+    ) -> None:
         """Initialize the debate orchestrator."""
         self.agents = agents
-        self.llm = ChatVertexAI(
-            model_name=LLM_CONFIG["model_name"],
-            temperature=LLM_CONFIG["temperature"],
-            max_output_tokens=LLM_CONFIG["max_output_tokens"],
+        self.llm = llm or ChatVertexAI(
             project=os.getenv("GOOGLE_CLOUD_PROJECT"),
-            location=LLM_CONFIG["location"],
+            **LLM_CONFIG,
+            model_kwargs=MODEL_CONFIG,
         )
-        self.prompts = DEBATE_PROMPTS
-        # For interface compatibility with legacy orchestrator and tests
-        self.structure = DEBATE_ROUNDS
-        self.graph = self._build_debate_graph()
-        self.round_titles = {
-            ROUND_OPENING: "Opening Statements",
-            ROUND_REBUTTAL: "Rebuttal",
-            ROUND_SURREBUTTAL: "Surrebuttal",
-            ROUND_SYNTHESIS: "Synthesis",
+        self.debate_spec: DebateSpec = debate_spec or load_default_debate_spec()
+
+        # Lazily build research tools once; reused across all agent subgraphs
+        self.research_tools = get_research_tools()
+
+        self.agent_tools: dict[str, Tool] = {
+            agent.id: self._create_agent_tool(agent) for agent in self.agents
         }
+
+        self.graph = self._build_debate_graph()
+        self.round_titles = {r: p.title for r, p in self.debate_spec.rounds.items()}
+        self._ordered_rounds: list[int] = sorted(self.debate_spec.rounds.keys())
+        self._first_sequential_round: int | None = next(
+            (
+                r
+                for r in self._ordered_rounds
+                if self.debate_spec.type_for_round(r) == RoundType.sequential
+            ),
+            None,
+        )
+
+    def _create_agent_tool(self, agent: models.Agent) -> Tool:
+        """Create a tool for an agent, wrapping a ReAct subgraph."""
+        system_message = SystemMessage(content=agent.system_prompt)
+        agent_runnable = create_react_agent(self.llm, tools=self.research_tools)
+
+        async def _agent_tool_func(prompt: str) -> str:
+            """Execute the agent's tool function asynchronously."""
+            messages = [system_message, HumanMessage(content=prompt)]
+            config = {"recursion_limit": 15}
+            final_state = await agent_runnable.ainvoke(
+                {"messages": messages}, config=config
+            )
+            for message in reversed(final_state["messages"]):
+                if isinstance(message, AIMessage):
+                    return message.content
+            return "Agent failed to produce a final answer."
+
+        return Tool(
+            name=agent.name.replace(" ", "_"),
+            description=(
+                f"A debater named {agent.name}. "
+                "Use this to get their opinion on a topic."
+            ),
+            func=_agent_tool_func,
+            coroutine=_agent_tool_func,
+        )
 
     def _build_debate_graph(self) -> StateGraph:
         """Build the LangGraph workflow for the debate structure."""
@@ -74,12 +133,12 @@ class LangGraphDebateOrchestrator:
 
         workflow.add_node("route_debate", self._route_debate)
         workflow.add_node(
-            "execute_opening_statements",
-            self._execute_opening_statements,
+            "execute_parallel_round",
+            self._execute_parallel_round,
         )
         workflow.add_node("setup_sequential_round", self._setup_sequential_round)
         workflow.add_node("execute_sequential_turn", self._execute_sequential_turn)
-        workflow.add_node("execute_synthesis", self._execute_synthesis)
+        workflow.add_node("execute_moderator_round", self._execute_moderator_round)
 
         workflow.set_entry_point("route_debate")
 
@@ -87,18 +146,19 @@ class LangGraphDebateOrchestrator:
             "route_debate",
             lambda state: state["status_context"]["code"],
             {
-                "OPENING_STATEMENTS": "execute_opening_statements",
+                "OPENING_STATEMENTS": "execute_parallel_round",
                 "SETUP_SEQUENTIAL_ROUND": "setup_sequential_round",
                 "SEQUENTIAL_TURN": "execute_sequential_turn",
-                "SYNTHESIS": "execute_synthesis",
+                "MODERATOR_ROUND": "execute_moderator_round",
                 "END": END,
             },
         )
 
-        workflow.add_edge("execute_opening_statements", "route_debate")
+        workflow.add_edge("execute_parallel_round", "route_debate")
         workflow.add_edge("setup_sequential_round", "route_debate")
         workflow.add_edge("execute_sequential_turn", "route_debate")
-        workflow.add_edge("execute_synthesis", END)
+        # Allow moderator rounds to chain; routing will END when no next round exists
+        workflow.add_edge("execute_moderator_round", "route_debate")
 
         return workflow.compile()
 
@@ -108,7 +168,7 @@ class LangGraphDebateOrchestrator:
             topic=topic,
             agents=self.agents,
             debate_transcript=[],
-            current_round=ROUND_OPENING,
+            current_round=self._ordered_rounds[0],
             round_agent_order=[],
             current_agent_index=0,
             status_context=None,
@@ -120,7 +180,7 @@ class LangGraphDebateOrchestrator:
 
         async for state_update in self.graph.astream(initial_state):
             # Use the latest node's state in this update batch.
-            node, state = next(reversed(state_update.items()))
+            _, state = next(reversed(state_update.items()))
             if not state:
                 continue
 
@@ -143,31 +203,34 @@ class LangGraphDebateOrchestrator:
         """Route the debate by setting the next status code in state."""
         round_num = state["current_round"]
 
-        if round_num == ROUND_OPENING:
-            return {"status_context": {"code": "OPENING_STATEMENTS"}}
+        if round_num not in self.debate_spec.rounds:
+            return {"status_context": {"code": "END"}}
 
-        if round_num in [ROUND_REBUTTAL, ROUND_SURREBUTTAL]:
-            # If the round is just starting (no agent order yet), set it up.
+        round_type = self.debate_spec.type_for_round(round_num)
+        if round_type == RoundType.parallel:
+            return {"status_context": {"code": "OPENING_STATEMENTS"}}
+        if round_type == RoundType.sequential:
             if not state.get("round_agent_order"):
                 return {"status_context": {"code": "SETUP_SEQUENTIAL_ROUND"}}
-            # Otherwise, execute the next turn.
             return {"status_context": {"code": "SEQUENTIAL_TURN"}}
-
-        if round_num == ROUND_SYNTHESIS:
-            return {"status_context": {"code": "SYNTHESIS"}}
+        if round_type == RoundType.moderator:
+            return {"status_context": {"code": "MODERATOR_ROUND"}}
 
         return {"status_context": {"code": "END"}}
 
-    async def _execute_opening_statements(self, state: DebateState) -> dict:
+    async def _execute_parallel_round(self, state: DebateState) -> dict:
         """Node for the parallel opening statements round."""
         status_context = {
             "code": "ROUND_STARTING",
-            "round_number": ROUND_OPENING,
-            "round_title": self.round_titles[ROUND_OPENING],
-            "round_type": "parallel",
+            "round_number": state["current_round"],
+            "round_title": self._title_for(state["current_round"]),
+            "round_type": self.debate_spec.type_for_round(state["current_round"])
+            or "parallel",
         }
+        round_cfg = self.debate_spec.rounds[state["current_round"]]
+        content = self._build_round_context(state, round_cfg.context_strategy)
         tasks = [
-            self._get_agent_response(agent, state["topic"], "opening_statement")
+            self._invoke_agent(agent, round_cfg.prompt_template, content)
             for agent in self.agents
         ]
         results = await asyncio.gather(*tasks)
@@ -175,12 +238,12 @@ class LangGraphDebateOrchestrator:
         current_transcript = state.get("debate_transcript", [])
         for agent, response in zip(self.agents, results, strict=True):
             current_transcript.append(
-                self._create_transcript_entry(agent, response, ROUND_OPENING)
+                self._create_transcript_entry(agent, response, state["current_round"])
             )
 
         return {
             "debate_transcript": current_transcript,
-            "current_round": ROUND_REBUTTAL,  # Advance to next round
+            "current_round": self._next_round_number(state["current_round"]),
             "status_context": status_context,
         }
 
@@ -190,8 +253,8 @@ class LangGraphDebateOrchestrator:
         status_context = {
             "code": "ROUND_STARTING",
             "round_number": round_num,
-            "round_title": self.round_titles[round_num],
-            "round_type": "sequential",
+            "round_title": self._title_for(round_num),
+            "round_type": self.debate_spec.type_for_round(round_num) or "sequential",
         }
         # Avoid back-to-back turns by not starting with the prior round's last
         # speaker (if available)
@@ -223,15 +286,9 @@ class LangGraphDebateOrchestrator:
             },
         }
 
-        if round_num == ROUND_REBUTTAL:
-            context_entries = [
-                e for e in state["debate_transcript"] if e["round"] == ROUND_OPENING
-            ]
-            response = await self._get_rebuttal(agent, state["topic"], context_entries)
-        else:  # SURREBUTTAL
-            response = await self._get_surrebuttal(
-                agent, state["topic"], state["debate_transcript"]
-            )
+        round_cfg = self.debate_spec.rounds[round_num]
+        content = self._build_round_context(state, round_cfg.context_strategy)
+        response = await self._invoke_agent(agent, round_cfg.prompt_template, content)
 
         current_transcript = state.get("debate_transcript", [])
         current_transcript.append(
@@ -244,7 +301,7 @@ class LangGraphDebateOrchestrator:
         if next_agent_index >= len(state["round_agent_order"]):
             return {
                 "debate_transcript": current_transcript,
-                "current_round": round_num + 1,
+                "current_round": self._next_round_number(round_num),
                 "current_agent_index": 0,
                 "round_agent_order": [],  # Clear order for the next round
                 "status_context": status_context,
@@ -260,29 +317,34 @@ class LangGraphDebateOrchestrator:
             "status_context": status_context,
         }
 
-    async def _execute_synthesis(self, state: DebateState) -> dict:
-        """Node for the final synthesis round."""
+    async def _execute_moderator_round(self, state: DebateState) -> dict:
+        """Node for a moderator round."""
         status_context = {
             "code": "ROUND_STARTING",
-            "round_number": ROUND_SYNTHESIS,
-            "round_title": self.round_titles[ROUND_SYNTHESIS],
-            "round_type": "moderator",
+            "round_number": state["current_round"],
+            "round_title": self._title_for(state["current_round"]),
+            "round_type": self.debate_spec.type_for_round(state["current_round"])
+            or "moderator",
         }
-        response = await self._get_synthesis(state["topic"], state["debate_transcript"])
+        round_cfg = self.debate_spec.rounds[state["current_round"]]
+        content = self._build_round_context(state, round_cfg.context_strategy)
+        response = await self._invoke_agent(None, round_cfg.prompt_template, content)
 
         current_transcript = state.get("debate_transcript", [])
         current_transcript.append(
-            self._create_transcript_entry("Moderator", response, ROUND_SYNTHESIS)
+            self._create_transcript_entry("Moderator", response, state["current_round"])
         )
 
         return {
             "debate_transcript": current_transcript,
-            "current_round": ROUND_COMPLETE,
+            "current_round": self._next_round_number(state["current_round"]),
             "status_context": status_context,
         }
 
     def _get_randomized_agents(
-        self, *, exclude_first_agent_id: str | None = None
+        self,
+        *,
+        exclude_first_agent_id: str | None = None,
     ) -> list[models.Agent]:
         """Get agents in randomized order.
 
@@ -309,87 +371,11 @@ class LangGraphDebateOrchestrator:
             agents_copy.append(first)
         return agents_copy
 
-    async def _get_rebuttal(
-        self, agent: models.Agent, topic: str, opening_statements: list[dict]
-    ) -> str:
-        """Get rebuttal from an agent based on opening statements."""
-        agent_statement = next(
-            (e["content"] for e in opening_statements if e["agent"] == agent.name),
-            "",
-        )
-
-        context_lines = [
-            f"Original Topic: {topic}",
-            "",
-            f"Your Opening Statement: {agent_statement}",
-            "",
-            "Other Panelists' Opening Statements:",
-        ]
-        for entry in opening_statements:
-            if entry["agent"] != agent.name:
-                context_lines.extend(
-                    [
-                        "",
-                        f"{entry['agent']}:",
-                        f"{entry['content']}",
-                    ]
-                )
-        context = "\n".join(context_lines)
-        return await self._get_agent_response(agent, context, "rebuttal")
-
-    async def _get_surrebuttal(
-        self, agent: models.Agent, topic: str, transcript: list[dict]
-    ) -> str:
-        """Get surrebuttal from an agent based on the full transcript so far."""
-        lines = [
-            f"Original Topic: {topic}",
-            "",
-            "Full Debate Transcript So Far:",
-        ]
-        for entry in transcript:
-            lines.extend(
-                [
-                    "",
-                    f"{entry['agent']} (Round {entry['round']}):",
-                    f"{entry['content']}",
-                ]
-            )
-        context = "\n".join(lines)
-        return await self._get_agent_response(agent, context, "surrebuttal")
-
-    async def _get_synthesis(self, topic: str, transcript: list[dict]) -> str:
-        """Get synthesis from the moderator based on the full transcript."""
-        lines = [f"Original Topic: {topic}", "", "Full Debate Transcript:"]
-        for entry in transcript:
-            lines.extend(
-                [
-                    "",
-                    f"{entry['agent']} (Round {entry['round']}):",
-                    f"{entry['content']}",
-                ]
-            )
-        context = "\n".join(lines)
-        full_prompt = f"{self.prompts['synthesis']}\n\n{context}"
-        messages = [HumanMessage(content=full_prompt)]
-        response = await self.llm.ainvoke(messages)
-        return response.content
-
-    async def _get_agent_response(
-        self, agent: models.Agent, content: str, response_type: str
-    ) -> str:
-        """Invoke the LLM to get a response from a specific agent."""
-        prompt_suffix = self.prompts.get(response_type, "")
-        prompt = f"{agent.system_prompt}\n\n{prompt_suffix}\n\n{content}"
-        messages = [HumanMessage(content=prompt)]
-        try:
-            response = await self.llm.ainvoke(messages)
-        except (ValueError, RuntimeError, ConnectionError) as e:
-            return f"Error generating response for {agent.name}: {e!s}"
-        else:
-            return response.content
-
     def _create_transcript_entry(
-        self, agent: models.Agent | str, response: str, round_num: int
+        self,
+        agent: models.Agent | str,
+        response: str,
+        round_num: int,
     ) -> dict[str, Any]:
         """Create a standardized dictionary for a transcript entry."""
         if isinstance(agent, models.Agent):
@@ -414,3 +400,106 @@ class LangGraphDebateOrchestrator:
         """Create a server-sent event (SSE) string payload."""
         payload = {"type": event_type, **data}
         return f"data: {json.dumps(payload)}\n\n"
+
+    # ---------------------------------------------------------------------
+    # Helpers
+    # ---------------------------------------------------------------------
+    def _next_round_number(self, current_round: int) -> int:
+        """Return the next round number defined in the spec or a sentinel value.
+
+        If no later round exists, return a number not in the spec so the router
+        will send execution to END on the next tick.
+        """
+        for r in self._ordered_rounds:
+            if r > current_round:
+                return r
+        return current_round + 1
+
+    def _title_for(self, round_number: int) -> str:
+        """Resolve a round title from spec or fallbacks for compatibility."""
+        return (
+            self.debate_spec.title_for_round(round_number)
+            or self.round_titles.get(round_number)
+            or f"Round {round_number}"
+        )
+
+    # ---------------------------------------------------------------------
+    # Round utilities
+    # ---------------------------------------------------------------------
+    def _build_round_context(
+        self,
+        state: DebateState,
+        strategy: RoundContextStrategy,
+    ) -> str:
+        topic = state["topic"]
+        transcript = state.get("debate_transcript", [])
+
+        # Regex-based source extraction is a temporary, brittle solution.
+        # We plan to move to a structured agent output model (e.g., JSON with a
+        # dedicated 'sources' key) to make this process more robust.
+        cited_sources = []
+        for entry in transcript:
+            sources = re.findall(r"(Source: ([^)]+))", entry.get("content", ""))
+            if sources:
+                cited_sources.extend(sources)
+
+        sources_text = ""
+        if cited_sources:
+            unique_sources = sorted(set(cited_sources))
+            sources_text = (
+                "PREVIOUSLY CITED SOURCES:\n"
+                + "\n".join(f"- {s}" for s in unique_sources)
+                + "\n\n"
+            )
+
+        if strategy == RoundContextStrategy.topic_only:
+            return topic
+
+        if strategy == RoundContextStrategy.full_transcript:
+            lines = [
+                f"Original Topic: {topic}",
+                "",
+                "Full Debate Transcript So Far:",
+            ]
+            for entry in transcript:
+                lines.extend(
+                    [
+                        "",
+                        f"{entry['agent']} (Round {entry['round']}):",
+                        f"{entry['content']}",
+                    ]
+                )
+            # Prepend the extracted sources to the context for the agent.
+            return sources_text + "\n".join(lines)
+
+        return topic
+
+    async def _invoke_agent(
+        self,
+        agent: models.Agent | None,
+        prompt_template: str,
+        content: str,
+    ) -> str:
+        """Invoke an agent's tool or the moderator LLM."""
+        prompt_suffix = prompt_template
+
+        # Moderator is a direct LLM call, not a ReAct agent tool.
+        if agent is None:
+            full_prompt = f"{prompt_suffix}\n\n{content}"
+            messages = [HumanMessage(content=full_prompt)]
+            try:
+                response = await self.llm.ainvoke(messages)
+            except (ValueError, RuntimeError, ConnectionError) as e:
+                return f"Error generating response for Moderator: {e!s}"
+            else:
+                return response.content
+
+        # Regular agents are invoked as tools (which wrap ReAct subgraphs).
+        agent_tool = self.agent_tools[agent.id]
+        prompt = f"{prompt_suffix}\n\n{content}"
+        try:
+            response = await agent_tool.coroutine(prompt)
+        except (ValueError, RuntimeError, ConnectionError) as e:
+            return f"Error generating response for {agent.name}: {e!s}"
+        else:
+            return response
