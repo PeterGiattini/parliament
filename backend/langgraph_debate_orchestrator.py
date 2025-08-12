@@ -22,6 +22,7 @@ from debate_spec import (
     RoundType,
     load_default_debate_spec,
 )
+from tools import get_research_tools
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,9 @@ class LangGraphDebateOrchestrator:
         )
         self.debate_spec: DebateSpec = debate_spec or load_default_debate_spec()
 
+        # Lazily build research tools once; reused across all agent subgraphs
+        self.research_tools = get_research_tools()
+
         self.agent_tools: dict[str, Tool] = {
             agent.id: self._create_agent_tool(agent) for agent in self.agents
         }
@@ -98,7 +102,7 @@ class LangGraphDebateOrchestrator:
     def _create_agent_tool(self, agent: models.Agent) -> Tool:
         """Create a tool for an agent, wrapping a ReAct subgraph."""
         system_message = SystemMessage(content=agent.system_prompt)
-        agent_runnable = create_react_agent(self.llm, tools=[])
+        agent_runnable = create_react_agent(self.llm, tools=self.research_tools)
 
         async def _agent_tool_func(prompt: str) -> str:
             """Execute the agent's tool function asynchronously."""
