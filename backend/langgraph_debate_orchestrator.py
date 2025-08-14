@@ -100,6 +100,29 @@ class LangGraphDebateOrchestrator:
             None,
         )
 
+    def _calculate_recursion_limit(self) -> int:
+        """Calculate recursion limit based on debate complexity."""
+        total_steps = 1  # initial route_debate
+
+        for round_num in self._ordered_rounds:
+            round_type = self.debate_spec.type_for_round(round_num)
+
+            match round_type:
+                case RoundType.parallel:
+                    total_steps += 2  # execute_parallel_round → route_debate
+                case RoundType.sequential:
+                    total_steps += (
+                        2 + len(self.agents) * 2
+                    )  # setup + route + (execute + route) per agent
+                case RoundType.moderator:
+                    total_steps += 2  # execute_moderator_round → route_debate
+                case _:
+                    raise ValueError("Unknown round type: " + str(round_type))
+
+        limit = int(total_steps * 1.3)  # 30% buffer
+
+        return max(25, min(limit, 100))  # clamp to [25, 100]
+
     def _create_agent_tool(self, agent: models.Agent) -> Tool:
         """Create a tool for an agent, wrapping a ReAct subgraph."""
         system_message = SystemMessage(content=agent.system_prompt)
@@ -175,10 +198,12 @@ class LangGraphDebateOrchestrator:
             last_speaker_id=None,
         )
 
+        config = {"recursion_limit": self._calculate_recursion_limit()}
+
         last_status_context = None
         last_transcript_index = 0
 
-        async for state_update in self.graph.astream(initial_state):
+        async for state_update in self.graph.astream(initial_state, config=config):
             # Use the latest node's state in this update batch.
             _, state = next(reversed(state_update.items()))
             if not state:

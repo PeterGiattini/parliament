@@ -58,7 +58,8 @@ ignore = [
     "ARG002",  # unused method argument (common in test mocks)
     "ANN401",  # dynamically typed expressions (common in test mocks)
     "PT011",  # pytest.raises too broad (tests often use broad exceptions)
-
+    "ERA001",  # commented-out code (useful calculation comments in tests)
+    "SLF001",  # private member access (fine in tests)
 ]
 
 [tool.pytest.ini_options]
